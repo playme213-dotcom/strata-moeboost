@@ -421,6 +421,72 @@ async def optimize_quantize(req: QuantizeRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class ModelLoadRequest(BaseModel):
+    model_path: str
+    gpu_layers: int | None = None
+    threads: int | None = None
+    context: int | None = None
+    batch: int | None = None
+    low_spec: bool = False
+    mtp: str = "auto"
+
+@app.post("/api/models/load")
+async def load_model_api(req: ModelLoadRequest):
+    """Dynamically loads or switches model in memory with MTP draft support."""
+    p = Path(req.model_path)
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="Model file not found")
+
+    try:
+        # Run model loading in threadpool to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            load_model,
+            str(p),
+            req.gpu_layers,
+            req.threads,
+            req.context or state.n_ctx,
+            req.batch,
+            req.low_spec,
+            req.mtp
+        )
+        return {
+            "status": "ok",
+            "model": state.model_name,
+            "path": state.model_path,
+            "context": state.n_ctx,
+            "gpu_layers": state.n_gpu_layers,
+            "threads": state.n_threads,
+            "message": f"Successfully loaded and initialized {state.model_name}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load model: {str(e)}")
+
+@app.post("/api/server/restart")
+async def restart_server_api():
+    """Triggers an in-process reload and memory reclamation of the active model and cache."""
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            load_model,
+            state.model_path or "/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf",
+            state.n_gpu_layers,
+            state.n_threads,
+            state.n_ctx,
+            None,
+            False,
+            "auto"
+        )
+        return {
+            "status": "ok",
+            "model": state.model_name,
+            "message": "Strata-MoEBoost engine cleanly re-initialized."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to restart engine: {str(e)}")
+
 @app.get("/config")
 async def get_config():
     return {
