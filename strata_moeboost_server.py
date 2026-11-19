@@ -439,19 +439,30 @@ async def chat_completions(req: ChatCompletionRequest):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 def load_model(path: str, n_gpu_layers: int = 4, n_threads: int = 4, n_ctx: int = 2048, n_batch: int = 256):
-    print(f"[Strata-MoEBoost] Loading model with Turbo Tuner from {path}...")
+    print(f"[Strata-MoEBoost] Loading model with HotRod Turbo Tuner from {path}...")
     t0 = time.time()
     state.llm = Llama(
         model_path=path,
         n_ctx=n_ctx,
         n_gpu_layers=n_gpu_layers,
         n_threads=n_threads,
+        n_threads_batch=n_threads,
         n_batch=n_batch,
         n_ubatch=n_batch,
+        offload_kqv=True,
         use_mmap=True,
         use_mlock=True,
         verbose=False
     )
+    # Enable HotRod Conversation / Prefix Cache in RAM (bypasses redundant prompt parsing)
+    try:
+        from llama_cpp import LlamaRAMCache
+        cache = LlamaRAMCache(capacity_bytes=1024 * 1024 * 1024) # 1 GB HotRod conversation RAM cache
+        state.llm.set_cache(cache)
+        print("[Strata-MoEBoost] HotRod 1GB RAM Prompt Cache enabled.")
+    except Exception as e:
+        print(f"[Strata-MoEBoost] Note: LlamaRAMCache init: {e}")
+
     t_load = time.time() - t0
     state.model_path = path
     state.model_name = Path(path).stem
@@ -459,7 +470,7 @@ def load_model(path: str, n_gpu_layers: int = 4, n_threads: int = 4, n_ctx: int 
     state.n_threads = n_threads
     state.n_ctx = n_ctx
     state.telemetry = Telemetry()
-    print(f"[Strata-MoEBoost] Optimized model loaded in {t_load:.2f}s! Threads: {n_threads}, Batch: {n_batch}, GPU Layers: {n_gpu_layers}")
+    print(f"[Strata-MoEBoost] HotRod Optimized model loaded in {t_load:.2f}s! Threads: {n_threads}, Batch: {n_batch}, GPU Layers: {n_gpu_layers}")
 
 def main():
     parser = argparse.ArgumentParser(description="Strata-MoEBoost Inference Server by Gravitize.IGP")
