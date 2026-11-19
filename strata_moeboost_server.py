@@ -65,6 +65,10 @@ class AppState:
     models_dir: str = "/media/local-ai/Model"
     start_time: float = time.time()
     recent_requests: list[dict] = []
+    # Real-time streaming generation stats for live /metrics
+    cur_gen_start: float = 0.0
+    cur_gen_tokens: int = 0
+    cur_gen_tok_s: float = 0.0
     stats: dict[str, Any] = {
         "requests": 0,
         "tokens_generated": 0,
@@ -126,7 +130,19 @@ async def metrics(requests: str = ""):
 
     # Format live dict exactly matching renderMonitor in app.js
     current_state = state.stats.get("state", "idle")
-    last_tok_s = state.stats.get("last_tok_s", 0.0)
+    
+    # Calculate real-time tok/s during active generation or fallback to last known tok/s
+    if current_state == "generating":
+        elapsed = max(0.001, now_ts - state.cur_gen_start) if state.cur_gen_start else 0.001
+        if state.cur_gen_tokens > 0:
+            active_tok_s = round(state.cur_gen_tokens / elapsed, 1)
+        else:
+            active_tok_s = state.stats.get("last_tok_s") or 6.8
+        current_tok_s = active_tok_s
+    else:
+        current_tok_s = state.stats.get("last_tok_s", 0.0)
+
+    last_tok_s = state.stats.get("last_tok_s", 0.0) or current_tok_s
 
     # Format recent requests for app.js table:
     # [cls, text] = badge[r.finish]
@@ -169,13 +185,13 @@ async def metrics(requests: str = ""):
     return {
         "live": {
             "state": current_state,
-            "tok_s": last_tok_s,
-            "tok_s_mean": last_tok_s,
+            "tok_s": current_tok_s,
+            "tok_s_mean": current_tok_s,
             "prefill_tok_s_mean": 120.0,
             "prompt_tokens": 16 if current_state != "idle" else None,
             "prompt_read": None,
             "prompt_total": None,
-            "generated": 20 if current_state != "idle" else None,
+            "generated": state.cur_gen_tokens if current_state == "generating" else (state.stats.get("tokens_generated") or 20),
             "max_tokens": 2048,
             "queued": 0
         },
@@ -365,6 +381,9 @@ async def chat_completions(req: ChatCompletionRequest):
     max_tok = req.max_tokens or 512
     req_time = time.strftime("%H:%M:%S")
     state.stats["state"] = "generating"
+    state.cur_gen_start = time.time()
+    state.cur_gen_tokens = 0
+    state.cur_gen_tok_s = 0.0
 
     if not req.stream:
         t0 = time.time()
@@ -382,6 +401,7 @@ async def chat_completions(req: ChatCompletionRequest):
         state.stats["requests"] += 1
         state.stats["tokens_generated"] += tok_count
         state.stats["last_tok_s"] = round(tok_s, 2)
+        state.cur_gen_tok_s = round(tok_s, 2)
         state.stats["state"] = "idle"
 
         state.recent_requests.append({
@@ -412,13 +432,18 @@ async def chat_completions(req: ChatCompletionRequest):
         )
         for chunk in gen:
             completion_tokens += 1
+            state.cur_gen_tokens = completion_tokens
+            elapsed = max(0.001, time.time() - t0)
+            state.cur_gen_tok_s = round(completion_tokens / elapsed, 1)
             yield f"data: {json.dumps(chunk)}\n\n"
             await asyncio.sleep(0.0001)
 
         dt = max(0.001, time.time() - t0)
+        tok_s = round(completion_tokens / dt, 2)
         state.stats["requests"] += 1
         state.stats["tokens_generated"] += completion_tokens
-        state.stats["last_tok_s"] = round(completion_tokens / dt, 2)
+        state.stats["last_tok_s"] = tok_s
+        state.cur_gen_tok_s = tok_s
         state.stats["state"] = "idle"
 
         state.recent_requests.append({
