@@ -212,9 +212,44 @@ async def check_model_support(path: str):
         "top_k": 8,
         "layers": 48,
         "fit_status": f"Fits comfortably ({size_gb} GB vs 22 GB Host RAM + 3 GB VRAM)",
-        "recommended": "4 layers in VRAM, 8 CPU Threads (Hybrid MoEBoost Mode)",
+        "recommended": "4 layers in VRAM, 4 physical CPU threads, 256 batch (Turbo MoEBoost Mode)",
         "message": "Fully compatible with Strata-MoEBoost 3-tier memory engine."
     }
+
+class QuantizeRequest(BaseModel):
+    model_path: str
+    preset: str = "Q3_K_S"
+    dry_run: bool = True
+
+@app.post("/api/optimizer/quantize")
+async def optimize_quantize(req: QuantizeRequest):
+    from strata_optimizer import quantize_model, QUANT_PRESETS
+    if req.preset not in QUANT_PRESETS:
+        raise HTTPException(status_code=400, detail=f"Invalid preset. Choose from: {list(QUANT_PRESETS.keys())}")
+    inp = Path(req.model_path)
+    if not inp.exists():
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    out_name = f"{inp.stem}_{req.preset}.gguf"
+    out_path = inp.parent / out_name
+
+    try:
+        res = quantize_model(
+            input_path=str(inp),
+            output_path=str(out_path),
+            preset=req.preset,
+            threads=4,
+            dry_run=req.dry_run
+        )
+        return {
+            "status": "ok",
+            "dry_run": req.dry_run,
+            "target": str(out_path),
+            "preset": req.preset,
+            "message": f"Quantization {'simulated' if req.dry_run else 'completed'} successfully."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/config")
 async def get_config():
@@ -333,14 +368,18 @@ async def chat_completions(req: ChatCompletionRequest):
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-def load_model(path: str, n_gpu_layers: int = 4, n_threads: int = 8, n_ctx: int = 4096):
-    print(f"[Strata-MoEBoost] Loading model from {path}...")
+def load_model(path: str, n_gpu_layers: int = 4, n_threads: int = 4, n_ctx: int = 2048, n_batch: int = 256):
+    print(f"[Strata-MoEBoost] Loading model with Turbo Tuner from {path}...")
     t0 = time.time()
     state.llm = Llama(
         model_path=path,
         n_ctx=n_ctx,
         n_gpu_layers=n_gpu_layers,
         n_threads=n_threads,
+        n_batch=n_batch,
+        n_ubatch=n_batch,
+        use_mmap=True,
+        use_mlock=True,
         verbose=False
     )
     t_load = time.time() - t0
@@ -349,19 +388,20 @@ def load_model(path: str, n_gpu_layers: int = 4, n_threads: int = 8, n_ctx: int 
     state.n_gpu_layers = n_gpu_layers
     state.n_threads = n_threads
     state.n_ctx = n_ctx
-    print(f"[Strata-MoEBoost] Model loaded in {t_load:.2f}s!")
+    print(f"[Strata-MoEBoost] Optimized model loaded in {t_load:.2f}s! Threads: {n_threads}, Batch: {n_batch}, GPU Layers: {n_gpu_layers}")
 
 def main():
     parser = argparse.ArgumentParser(description="Strata-MoEBoost Inference Server by Gravitize.IGP")
     parser.add_argument("--model", type=str, default="/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf")
     parser.add_argument("--gpu-layers", type=int, default=4)
-    parser.add_argument("--threads", type=int, default=8)
-    parser.add_argument("--ctx", type=int, default=4096)
+    parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument("--batch", type=int, default=256)
+    parser.add_argument("--ctx", type=int, default=2048)
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
     args = parser.parse_args()
 
-    load_model(args.model, n_gpu_layers=args.gpu_layers, n_threads=args.threads, n_ctx=args.ctx)
+    load_model(args.model, n_gpu_layers=args.gpu_layers, n_threads=args.threads, n_ctx=args.ctx, n_batch=args.batch)
     print(f"[Strata-MoEBoost] Base Strata HotRod GUI ready at: http://{args.host}:{args.port}")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 

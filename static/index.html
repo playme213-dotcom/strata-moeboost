@@ -236,16 +236,33 @@
       <!-- MoE Model Architecture Compatibility & Selector -->
       <div class="st-card moeboost-models-card" style="border-left: 3px solid #789cff; margin-bottom: 15px;">
         <div class="req-head">
-          <span class="card-title" style="color:#789cff">🧠 Select MoE Model & Verify Support</span>
-          <span class="muted small">Architecture & Hardware Fit Checker</span>
+          <span class="card-title" style="color:#789cff">🧠 MoE Model Selector & Optimizer</span>
+          <span class="muted small">Architecture, Auto-Tune & GGUF Optimizer</span>
         </div>
-        <p class="muted small" style="margin-top:6px">Choose any local GGUF MoE model to inspect its architecture, expert count, and hardware compatibility.</p>
+        <p class="muted small" style="margin-top:6px">Select any local GGUF MoE model to inspect compatibility, run hardware auto-tuning, or optimize to compact quant presets (Q2_K, Q3_K_S) to accelerate inference.</p>
         <div style="display:flex; gap:8px; margin: 10px 0;">
           <select class="st-input" id="moe-model-select" style="flex:1; background:var(--st-bg-input, #121824); color:inherit; border:1px solid #2b384e; padding:6px 10px; border-radius:6px;">
             <option value="">Scanning local models...</option>
           </select>
-          <button class="st-btn st-btn--primary" type="button" id="moe-check-btn" style="white-space:nowrap;">Check Support</button>
+          <button class="st-btn st-btn--primary" type="button" id="moe-check-btn" style="white-space:nowrap;">Check Fit</button>
         </div>
+
+        <!-- Optimizer Controls -->
+        <div style="margin-top:10px; padding:10px 12px; border-radius:8px; background:rgba(255,255,255,0.03); border:1px solid #2b384e;">
+          <div style="font-weight:600; font-size:12px; margin-bottom:6px; color:#60a5fa;">⚡ GGUF Speed Optimizer</div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <label class="muted small" style="margin:0;">Target Quant:</label>
+            <select id="moe-opt-preset" class="st-input" style="background:#121824; border:1px solid #2b384e; padding:4px 8px; border-radius:4px; font-size:12px;">
+              <option value="Q3_K_S">Q3_K_S (Balanced Fast - 3.49 BPW · ~10.3 GB)</option>
+              <option value="Q2_K">Q2_K (Ultra Fast - 2.96 BPW · ~8.7 GB)</option>
+              <option value="Q3_K_M">Q3_K_M (High Quality - 3.86 BPW · ~11.4 GB)</option>
+            </select>
+            <button class="st-btn st-btn--secondary" type="button" id="moe-sim-opt-btn" style="font-size:12px; padding:4px 10px;">Simulate Gain</button>
+            <button class="st-btn st-btn--primary" type="button" id="moe-run-opt-btn" style="font-size:12px; padding:4px 10px; background:#2563eb;">Optimize Model</button>
+          </div>
+          <div id="moe-opt-result" style="margin-top:8px; font-size:12px; display:none;"></div>
+        </div>
+
         <div id="moe-compat-result" style="margin-top:10px; padding:10px 12px; border-radius:8px; background:rgba(120,156,255,0.06); border:1px solid rgba(120,156,255,0.2); font-size:12px; display:none;">
         </div>
       </div>
@@ -368,7 +385,48 @@
       sel.innerHTML = '<option value="/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf">cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf (13.4 GB)</option>';
     }
 
-    btn.addEventListener('click', async () => {
+    // Wire Optimizer buttons
+    const simBtn = document.getElementById('moe-sim-opt-btn');
+    const runBtn = document.getElementById('moe-run-opt-btn');
+    const optRes = document.getElementById('moe-opt-result');
+    const presetSel = document.getElementById('moe-opt-preset');
+
+    async function handleQuantize(dryRun) {
+      const path = sel.value;
+      if (!path) return;
+      const preset = presetSel ? presetSel.value : 'Q3_K_S';
+      optRes.style.display = 'block';
+      optRes.innerHTML = '<em>' + (dryRun ? 'Simulating' : 'Quantizing') + ' ' + preset + '...</em>';
+
+      try {
+        const resp = await fetch('/api/optimizer/quantize', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({model_path: path, preset: preset, dry_run: dryRun})
+        });
+        const out = await resp.json();
+        if (resp.ok) {
+          const badge = dryRun ? '🔍 SIMULATION RESULT' : '⚡ QUANTIZATION COMPLETE';
+          optRes.innerHTML = '<div style="color:#79dfa0; font-weight:600; margin-bottom:4px;">' + badge + '</div>' +
+            '<div style="color:var(--st-text-muted);">' +
+            '<div>Target: <code>' + out.target.split('/').pop() + '</code></div>' +
+            '<div>Format: <b>' + out.preset + '</b></div>' +
+            '<div>' + out.message + '</div>' +
+            '</div>';
+        } else {
+          optRes.innerHTML = '<div style="color:#ff7887;">Error: ' + (out.detail || 'Optimizer failed') + '</div>';
+        }
+      } catch (e) {
+        optRes.innerHTML = '<div style="color:#ff7887;">Error running optimizer: ' + e.message + '</div>';
+      }
+    }
+
+    if (simBtn) simBtn.addEventListener('click', () => handleQuantize(true));
+    if (runBtn) runBtn.addEventListener('click', () => {
+      if (confirm('Run GGUF Quantization now? This will write a new optimized file to disk.')) {
+        handleQuantize(false);
+      }
+    });
       const path = sel.value;
       if (!path) return;
       res.style.display = 'block';
