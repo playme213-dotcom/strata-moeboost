@@ -523,7 +523,7 @@ async def chat_completions(req: ChatCompletionRequest):
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None = None, n_ctx: int | None = None, n_batch: int | None = None, low_spec: bool = False):
+def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None = None, n_ctx: int | None = None, n_batch: int | None = None, low_spec: bool = False, mtp: str = "auto"):
     from strata_optimizer import analyze_hardware
     hw = analyze_hardware()
     
@@ -545,6 +545,16 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
         final_mlock = hw["recommended_use_mlock"]
         cache_bytes = hw["recommended_cache_mb"] * 1024 * 1024
 
+    # Configure MTP (Multi-Token Prediction / Speculative Lookahead) Drafter
+    drafter = None
+    if mtp in ("auto", "on", "true", "1"):
+        try:
+            from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
+            drafter = LlamaPromptLookupDecoding(max_ngram_size=2, num_pred_tokens=2)
+            print("[Strata-MoEBoost] MTP Auto-Engaged: Speculative Lookahead Drafter active.")
+        except Exception as e:
+            print(f"[Strata-MoEBoost] MTP Drafter notice: {e}")
+
     print(f"[Strata-MoEBoost] Loading model from {path} (RAM: {hw['ram_gib']}GB, VRAM: {hw['vram_gib']}GB)...")
     t0 = time.time()
     state.llm = Llama(
@@ -558,6 +568,7 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
         offload_kqv=True,
         use_mmap=True,
         use_mlock=final_mlock,
+        draft_model=drafter,
         verbose=False
     )
     # Enable HotRod Conversation / Prefix Cache in RAM
@@ -586,6 +597,7 @@ def main():
     parser.add_argument("--batch", type=int, default=None)
     parser.add_argument("--ctx", type=int, default=None)
     parser.add_argument("--low-spec", action="store_true", help="Ultra low-spec mode for 2GB VRAM cards / APUs / 8-16GB RAM")
+    parser.add_argument("--mtp", type=str, default="auto", choices=["auto", "on", "off"], help="Multi-token prediction speculative lookahead mode")
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
     args = parser.parse_args()
@@ -596,7 +608,8 @@ def main():
         n_threads=args.threads,
         n_ctx=args.ctx,
         n_batch=args.batch,
-        low_spec=args.low_spec
+        low_spec=args.low_spec,
+        mtp=args.mtp
     )
     print(f"[Strata-MoEBoost] Base Strata HotRod GUI ready at: http://{args.host}:{args.port}")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
