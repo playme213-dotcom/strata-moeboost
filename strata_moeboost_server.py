@@ -1087,43 +1087,58 @@ async def chat_completions(req: ChatCompletionRequest):
         except Exception:
             prompt_tokens = sum(len(m.get("content", "").split()) for m in msgs)
 
-        gen = state.llm.create_chat_completion(
-            messages=msgs,
-            max_tokens=max_tok,
-            temperature=req.temperature,
-            top_p=req.top_p,
-            stream=True
-        )
-        for chunk in gen:
-            completion_tokens += 1
-            state.cur_gen_tokens = completion_tokens
-            elapsed = max(0.001, time.time() - t0)
-            state.cur_gen_tok_s = round(completion_tokens / elapsed, 1)
-            yield f"data: {json.dumps(chunk)}\n\n"
-            await asyncio.sleep(0.0001)
+        try:
+            gen = state.llm.create_chat_completion(
+                messages=msgs,
+                max_tokens=max_tok,
+                temperature=req.temperature,
+                top_p=req.top_p,
+                stream=True
+            )
+            for chunk in gen:
+                completion_tokens += 1
+                state.cur_gen_tokens = completion_tokens
+                elapsed = max(0.001, time.time() - t0)
+                state.cur_gen_tok_s = round(completion_tokens / elapsed, 1)
+                yield f"data: {json.dumps(chunk)}\n\n"
+                await asyncio.sleep(0.0001)
+        except Exception as e:
+            print(f"[Strata-MoEBoost] Streaming generation error: {e}")
+            err_chunk = {
+                "id": f"chatcmpl-err-{int(time.time())}",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": state.model_name,
+                "choices": [{
+                    "index": 0,
+                    "delta": {"role": "assistant", "content": f"\n\n*[Generation error: {e}]*"},
+                    "finish_reason": "error"
+                }]
+            }
+            yield f"data: {json.dumps(err_chunk)}\n\n"
+        finally:
+            dt = max(0.001, time.time() - t0)
+            tok_s = round(completion_tokens / dt, 2)
+            state.stats["requests"] += 1
+            state.stats["tokens_generated"] += completion_tokens
+            state.stats["last_tok_s"] = tok_s
+            state.cur_gen_tok_s = tok_s
+            state.stats["state"] = "idle"
 
-        dt = max(0.001, time.time() - t0)
-        tok_s = round(completion_tokens / dt, 2)
-        state.stats["requests"] += 1
-        state.stats["tokens_generated"] += completion_tokens
-        state.stats["last_tok_s"] = tok_s
-        state.cur_gen_tok_s = tok_s
-        state.stats["state"] = "idle"
-
-        state.recent_requests.append({
-            "time": req_time,
-            "time_ts": t0,
-            "status": "ok",
-            "prompt": prompt_tokens,
-            "reused": 0,
-            "output": completion_tokens,
-            "prefill_tok_s": 25.0,
-            "decode_tok_s": round(completion_tokens / dt, 2),
-            "vram_hit_rate": "96%",
-            "duration": f"{dt:.2f}s",
-            "duration_val": dt
-        })
-        yield "data: [DONE]\n\n"
+            state.recent_requests.append({
+                "time": req_time,
+                "time_ts": t0,
+                "status": "ok" if completion_tokens > 0 else "error",
+                "prompt": prompt_tokens,
+                "reused": 0,
+                "output": completion_tokens,
+                "prefill_tok_s": 25.0,
+                "decode_tok_s": round(completion_tokens / dt, 2),
+                "vram_hit_rate": "96%",
+                "duration": f"{dt:.2f}s",
+                "duration_val": dt
+            })
+            yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -1229,6 +1244,7 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
             n_threads_batch=final_threads,
             n_batch=final_batch,
             n_ubatch=final_batch,
+            logits_all=True if drafter is not None else False,
             offload_kqv=True,
             use_mmap=True,
             use_mlock=final_mlock,
@@ -1247,6 +1263,7 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
                 n_threads_batch=final_threads,
                 n_batch=final_batch,
                 n_ubatch=final_batch,
+                logits_all=False,
                 offload_kqv=True,
                 use_mmap=True,
                 use_mlock=final_mlock,
