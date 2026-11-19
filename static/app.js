@@ -1702,5 +1702,3 @@ if ($("dl-custom-btn")) {
 if ($("dl-dest-dir")) {
   $("dl-dest-dir").oninput = () => { $("dl-dest-dir").dataset.userModified = "true"; };
 }
-  }
-};
