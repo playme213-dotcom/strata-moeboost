@@ -3,7 +3,7 @@
 set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-PYTHON_BIN="/home/local-ai/Desktop/MoEBoost/.venv/bin/python"
+PYTHON_BIN="/home/local-ai/strata-moeboost/.venv/bin/python"
 
 MODEL="${1:-/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf}"
 PORT="${2:-8080}"

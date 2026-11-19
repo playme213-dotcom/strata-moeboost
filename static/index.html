@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Strata-MoEBoost · Control Deck (Gravitize.IGP)</title>
+<style>
+:root{color-scheme:dark;--bg:#090d15;--panel:#111926;--line:#28354a;--muted:#95a4ba;--text:#eff4ff;--cyan:#59d6cb;--blue:#789cff;--amber:#ffbd68;--red:#ff7887}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 12% -15%,#192746,transparent 48%),var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,sans-serif}.shell{max-width:1400px;margin:auto;padding:24px clamp(14px,3vw,42px)}header,.head,.row,.tabs{display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{display:flex;gap:12px;align-items:center}.logo{width:42px;height:42px;display:grid;place-items:center;border:1px solid #397b84;border-radius:13px;color:var(--cyan);font-size:20px;font-weight:800;background:#14252f}.brand h1{font-size:17px;margin:0}.brand p,.muted,.hint,small{color:var(--muted);font-size:12px}.brand p{margin:2px 0}.status{color:var(--muted);font-size:12px}.dot{display:inline-block;background:#79dfa0;width:8px;height:8px;border-radius:50%;margin-right:7px}.tabs{justify-content:flex-start;border-bottom:1px solid var(--line);margin:24px 0 18px;overflow:auto}.tab{background:none;border:0;color:var(--muted);padding:12px 16px;border-bottom:2px solid transparent;white-space:nowrap}.tab.active{border-color:var(--cyan);color:var(--text)}.view{display:none}.view.active{display:block}.grid{display:grid;gap:15px}.chatgrid{grid-template-columns:minmax(0,1fr) 320px;transition:grid-template-columns .25s ease;position:relative}.chatgrid.collapsed{grid-template-columns:minmax(0,1fr) 0px;gap:0}.side{transition:opacity .2s ease,transform .25s ease;overflow:hidden}.chatgrid.collapsed .side{display:none!important;opacity:0;pointer-events:none}.panel{background:#111926eF;border:1px solid var(--line);border-radius:15px;overflow:hidden}.head{padding:15px 18px;border-bottom:1px solid var(--line)}h2{font-size:14px;margin:0}.body{padding:17px}.chat{height:min(60vh,620px);min-height:330px;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:12px}.msg{max-width:88%;white-space:pre-wrap;overflow-wrap:anywhere;padding:12px 14px;border:1px solid #29374d;border-radius:13px;background:#161f2d}.msg.user{align-self:flex-end;background:#1a3450}.msg.assistant{align-self:flex-start}.msg.error{align-self:center;color:#ffc1c8;background:#321e28}.msg.streaming{border-left:3px solid var(--cyan)}.msg.streaming::after{content:'▌';color:var(--cyan);font-weight:700;display:inline-block;animation:typeCursor 0.75s infinite;margin-left:2px}@keyframes typeCursor{0%,100%{opacity:1}50%{opacity:0}}.msgmeta{font-size:11px;color:var(--muted);margin-top:8px;border-top:1px solid #29374d;padding-top:6px;white-space:normal}.chatbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:10px 18px;border-bottom:1px solid var(--line);background:#0d1420;font-size:11px}.chatkpi{display:flex;flex-direction:column;gap:2px;padding:4px 6px;border-radius:6px;transition:background .25s ease,box-shadow .25s ease}.chatkpi span{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.chatkpi b{color:var(--cyan);font-size:12px;font-weight:700;transition:color .2s,text-shadow .2s}.chatkpi.active-io{background:rgba(89,214,203,0.12);box-shadow:inset 0 0 0 1px rgba(89,214,203,0.4);animation:kpiPulse 1.2s infinite alternate}.chatkpi.active-io b{color:#7fffee;text-shadow:0 0 8px rgba(89,214,203,0.8)}.chatkpi.active-gen{background:rgba(120,156,255,0.15);box-shadow:inset 0 0 0 1px rgba(120,156,255,0.45);animation:kpiPulse 0.9s infinite alternate}.chatkpi.active-gen b{color:#a9c2ff;text-shadow:0 0 8px rgba(120,156,255,0.8)}@keyframes kpiPulse{0%{opacity:0.85}100%{opacity:1}}.compose{border-top:1px solid var(--line);padding:13px}.compose textarea{width:100%;height:55px;resize:vertical}.input,textarea,select{background:#0b121d;border:1px solid #2c394e;border-radius:9px;padding:10px 11px;color:var(--text);outline:none}.input:focus,textarea:focus,select:focus{border-color:var(--cyan)}button{cursor:pointer;color:var(--text)}.btn{border:1px solid #34445c;border-radius:9px;padding:9px 13px;background:#1a2638;font-weight:600}.btn:hover{border-color:#58a49e}.primary{background:#1b625e;border-color:#348c83}.danger{background:#49242d;border-color:#783944}.side select,.side input{width:100%}.side label,.formlabel{display:block;color:var(--muted);font-size:10px;letter-spacing:.08em;margin:8px 0 5px}.hint{margin-top:9px}.divider{height:1px;background:var(--line);margin:15px 0}.metrics{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:15px}.metric{padding:16px}.metric label{font-size:10px;letter-spacing:.09em;color:var(--muted);text-transform:uppercase}.value{font-size:25px;font-weight:700;margin:4px 0}.sub{font-size:11px;color:var(--muted)}.monitor{grid-template-columns:1fr}.barrow{margin:12px 0}.barlabel{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:12px;margin-bottom:5px}.bar{height:8px;background:#263144;border-radius:99px;overflow:hidden}.fill{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--cyan));transition:width .35s}.fill.warn{background:linear-gradient(90deg,var(--amber),#ff835f)}.tablewrap{overflow:auto;max-height:560px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;padding:9px;border-bottom:1px solid #222e41}th{color:var(--muted);font-weight:500;position:sticky;top:0;background:#111926}th.sortable{cursor:pointer;user-select:none}th.sortable:hover{color:var(--cyan)}th.sortable::after{content:' ↕';font-size:10px;opacity:.5}th.sortable.asc::after{content:' ↑';color:var(--cyan);opacity:1}th.sortable.desc::after{content:' ↓';color:var(--cyan);opacity:1}.pill{font-size:10px;color:var(--cyan);background:#1b3034;border-radius:20px;padding:3px 8px}.pill.dense{color:#bac7dc;background:#252e3d}.models{grid-template-columns:1.1fr .9fr}.model{padding:13px 0;border-bottom:1px solid #222e41}.model:last-child{border:0}.modelname{font-weight:600;overflow-wrap:anywhere}.progress{height:6px;background:#263144;border-radius:99px;margin-top:10px;overflow:hidden}.progress i{display:block;background:var(--cyan);height:100%;width:0}.empty{text-align:center;color:var(--muted);padding:28px}.toast{display:none;position:fixed;right:18px;bottom:18px;background:#172438;border:1px solid #36465e;border-radius:10px;padding:12px;max-width:350px;z-index:3}.devicegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:12px}.devicecard{padding:10px 11px;border:1px solid #26354a;border-radius:10px;background:#0d1521}.devicecard b{display:block;font-size:12px;overflow-wrap:anywhere}.devicecard span{display:block;color:var(--muted);font-size:11px;margin-top:3px}.explain{margin-top:13px;padding:10px 12px;border-left:2px solid var(--amber);background:#191a20;color:var(--muted);font-size:11px}@media(max-width:950px){.chatgrid,.monitor,.models{grid-template-columns:1fr}.chatgrid.collapsed{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}.side{order:-1}.chat{height:48vh}}@media(max-width:560px){header{align-items:flex-start;flex-direction:column}.metrics{grid-template-columns:1fr 1fr}.value{font-size:20px}.msg{max-width:96%}}
+</style></head><body><main class="shell">
+<header><div class="brand"><div class="logo" style="background:#142e2b;color:#59d6cb;border-color:#348c83">⚡</div><div><h1>Strata-MoEBoost <span style="color:var(--cyan)">/</span> Control Deck</h1><p>Gravitize.IGP · local GGUF monitor</p></div></div><div class="status"><i class="dot"></i><span id="status">Connecting…</span> · 127.0.0.1:8080</div></header>
+<nav class="tabs"><button class="tab active" data-view="chatview">Chat Playground</button><button class="tab" data-view="monitorview">Telemetry</button><button class="tab" data-view="workstationview">🧠 Neural Workstation</button><button class="tab" data-view="modelsview">Models &amp; Pulls</button></nav>
+<section class="view active" id="chatview"><div class="grid chatgrid"><div class="panel"><div class="head"><div><h2>OpenAI-compatible chat</h2><span class="muted">In-process llama.cpp tensor runtime · multi-turn session · MTP speculative engine</span></div><div class="row"><button class="btn" id="toggleSideBtn" style="padding:5px 10px;font-size:12px" title="Toggle model configuration & runtime panel">⚙️ Sidebar</button><button class="btn" id="clearChat" style="padding:5px 10px;font-size:12px">Clear chat</button><span class="pill" id="mtpPill">MTP ON</span><span class="pill">SSE</span></div></div><div class="chatbar" style="grid-template-columns:repeat(6,minmax(0,1fr))"><div class="chatkpi" id="kpiPrefill"><span>Prefill / Gen tok/s</span><b id="chatPrefill">— / —</b></div><div class="chatkpi" id="kpiVram"><span>VRAM read speed · time</span><b id="chatVramIo">0.00 MB/s · 0.00s</b></div><div class="chatkpi" id="kpiRam"><span>RAM read speed · time</span><b id="chatRamIo">0.00 MB/s · 0.00s</b></div><div class="chatkpi" id="kpiSsd"><span>SSD read speed · time</span><b id="chatReadTime">0.00 MB/s · 0.00s</b></div><div class="chatkpi" id="kpiTotal"><span>Total read (SSD/RAM/VRAM)</span><b id="chatReadSize">0.00 MB</b></div><div class="chatkpi" id="kpiSysRam"><span>System RAM</span><b id="chatRam">—</b></div></div><div class="chat" id="chat"><div class="empty" id="welcome">Choose a detected GGUF and send a prompt. The first request loads it into the native runtime.</div></div><div class="compose"><div class="row"><textarea id="prompt" placeholder="Message your model… (Enter to send)"></textarea><button class="btn primary" id="send">Send</button><button class="btn danger" id="stop" disabled>Stop</button></div></div></div><aside class="panel body side" id="chatSidePanel"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-weight:700;font-size:12px;color:var(--cyan)">ENGINE &amp; SETTINGS</span><button class="btn" id="closeSideBtn" style="padding:2px 8px;font-size:11px" title="Close settings panel">✕</button></div><label>LOCAL GGUF MODEL</label><select id="model"><option>Loading…</option></select><div class="hint" id="modelhint">Select a local GGUF for native inference.</div><div class="divider"></div><label>NATIVE INFERENCE RUNTIME</label><label style="margin-top:8px">KV CACHE QUANTIZATION</label>
+<div class="row" style="margin-top:4px">
+ <select id="kvCacheSelect" style="flex:1">
+  <option value="q4_0">Q4 (q4_0 · lowest VRAM, ~75% savings)</option>
+  <option value="q8_0" selected>Q8 (q8_0 · balanced, ~50% savings)</option>
+  <option value="f16">Q16 (f16 · uncompressed baseline)</option>
+ </select>
+</div>
+<div class="hint" id="kvCacheHint">Q8 cuts KV memory by 50% in VRAM with lossless precision; Q4 cuts by 75%.</div>
+<label style="margin-top:10px">VRAM &amp; RAM TIER STRATEGY</label>
+<div class="row" style="margin-top:4px">
+ <select id="vramTierMode" style="flex:1">
+  <option value="expert_staging" selected>MoE Expert Staging Mode (~2.5 GB VRAM for ~1000 hot experts + RAM tier)</option>
+  <option value="layer_offload">Layer Offload Mode (Offload full monolithic layers into VRAM)</option>
+ </select>
+</div>
+<div class="hint" id="vramTierHint">Expert Staging Mode frees ~2.5 GB VRAM from llama.cpp layers to hold ~1,000 top hot experts in GDDR5 and the rest in RAM.</div>
+<label style="margin-top:10px">MAX SYSTEM RAM LIMIT</label>
+<div class="row" style="margin-top:4px;gap:6px">
+ <input class="input" id="maxRamInput" style="flex:1;font-size:12px" placeholder="e.g. 16GB, 8192MB, or empty">
+ <button class="btn" id="applyMaxRamBtn" style="padding:6px 10px;font-size:12px">Apply</button>
+</div>
+<div class="hint" id="maxRamHint">Caps host RAM usage so model &amp; cache budget never exceeds this ceiling.</div>
+<button class="btn primary" id="runtimeLoad" style="width:100%;margin-top:8px">Load model into llama.cpp</button><button class="btn" id="autoOptimize" style="width:100%;margin-top:8px">Auto-optimize (benchmark configurations)</button><div class="hint" id="optimizeStatus">Tests up to 6 real configurations, rejects candidates that breach the protected RAM reserve, then leaves the fastest measured configuration loaded.</div><button class="btn" id="runtimeUnload" style="width:100%;margin-top:8px">Unload runtime model</button><div class="hint" id="runtimeStatus">Runtime model is not loaded.</div><button class="btn" id="fitcheck" style="margin-top:9px;width:100%">Check memory fit</button><div class="hint" id="fitresult">Fit check estimates VRAM/RAM working set and preserves a 10% system-RAM reserve by default.</div><button class="btn primary" id="prepare" style="width:100%;margin-top:8px">Prepare expert map &amp; warm cache</button><div class="hint" id="prepareresult"></div><button class="btn primary" id="optimizeTiers" style="width:100%;margin-top:8px">Optimize VRAM, RAM &amp; SSD</button><div class="hint" id="tierOptimizeStatus">Tunes CUDA non-blocking DMA, AVX2 DDR threads &amp; hugepages, and sequential NVMe/SSD fadvise.</div><button class="btn danger" id="unload" style="width:100%;margin-top:8px">Unload model from RAM cache</button><button class="btn danger" id="dropAllCaches" style="width:100%;margin-top:8px">Drop all model &amp; OS page caches</button><div class="hint" id="unloadresult"></div><div class="divider"></div><label>MULTI-TOKEN PREDICTION (MTP)</label><div class="row" style="margin-top:6px"><select id="mtpMode" style="flex:1"><option value="auto">MTP: Auto (N-gram + Adaptive)</option><option value="ngram">MTP: Prompt Lookup N-gram</option><option value="adaptive">MTP: Online Adaptive</option><option value="off">MTP: Disabled</option></select></div><div class="row" style="margin-top:6px"><div style="flex:1"><label style="margin:2px 0">DRAFT TOKENS</label><input class="input" id="mtpTokens" type="number" min="1" max="16" value="4"></div><div style="flex:1"><label style="margin:2px 0">N-GRAM SIZE</label><input class="input" id="mtpNgram" type="number" min="1" max="8" value="2"></div></div><button class="btn" id="applyMtp" style="width:100%;margin-top:8px">Apply MTP config</button><div class="hint" id="mtpStatus">MTP speculative engine ready.</div><div class="divider"></div><label>SYSTEM PROMPT (OPTIONAL)</label><input class="input" id="sysprompt" type="text" placeholder="You are a concise technical assistant."><label>TEMPERATURE</label><input class="input" id="temp" type="number" min="0" max="2" step=".1" value=".7"><label>MAX TOKENS</label><input class="input" id="max" type="number" min="1" max="32768" value="1024"><div class="hint">Expert map preparation warms the separate MoE Boost paging cache.</div><div class="divider"></div><button class="btn" onclick="loadModels()">Refresh model list</button><div class="hint" id="backend"></div></aside></div></section>
+<section class="view" id="monitorview"><div class="grid metrics" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:12px"><div class="panel metric" style="border-left:3px solid var(--cyan)"><label>VRAM Loaded Size</label><div class="value" id="vramLoadedVal" style="color:var(--cyan)">0.00 MB</div><div class="sub" id="vramLoadedSub">0 experts in GPU VRAM</div></div><div class="panel metric" style="border-left:3px solid var(--blue)"><label>RAM Loaded Size</label><div class="value" id="ramLoadedVal" style="color:var(--blue)">0.00 MB</div><div class="sub" id="ramLoadedSub">0 experts staged in DDR RAM</div></div><div class="panel metric" style="border-left:3px solid var(--amber)"><label>SSD Loaded / On-Disk</label><div class="value" id="ssdLoadedVal" style="color:var(--amber)">0.00 MB</div><div class="sub" id="ssdLoadedSub">0 experts on disk/cold</div></div></div>
+<div class="panel" style="margin-bottom:12px;border-left:3px solid var(--cyan)"><div class="head"><div><h2>Workshop Workstation Manager: Active Expert Queue &amp; In/Go Turnover</h2><span class="muted">Live incoming/outgoing expert routing across VRAM Tool &amp; RAM Hand Workstations</span></div><span class="pill" id="wsRatioPill">1-Go:1-In</span></div><div class="body" style="padding:12px"><div class="grid metrics" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:8px">
+  <div class="chatkpi" style="border-left:2px solid var(--cyan)"><span>VRAM Chairs (In / Max)</span><b id="wsVramChairs" style="color:var(--cyan)">0 / 6443</b></div>
+  <div class="chatkpi" style="border-left:2px solid var(--red)"><span>VRAM Stepped Out (Go)</span><b id="wsVramGo" style="color:#ff835f">0 displaced</b></div>
+  <div class="chatkpi" style="border-left:2px solid var(--cyan)"><span>UNIFIED SHARED QUEUE (LINE)</span><b id="wsQueueLine" style="color:var(--cyan)">0 waiting (unlimited)</b></div>
+  <div class="chatkpi" style="border-left:2px solid var(--cyan)"><span>VRAM Completed</span><b id="wsVramJobs" style="color:var(--cyan)">0 jobs</b></div>
+</div>
+<div class="grid metrics" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:10px">
+  <div class="chatkpi" style="border-left:2px solid var(--blue)"><span>RAM Chairs (50% Backup / Max)</span><b id="wsRamChairs" style="color:var(--blue)">0 / 64906</b></div>
+  <div class="chatkpi" style="border-left:2px solid var(--amber)"><span>RAM Stepped Out (Go)</span><b id="wsRamGo" style="color:var(--amber)">0 displaced</b></div>
+  <div class="chatkpi" style="border-left:2px solid var(--blue)"><span>SPILLWAY DRAINAGE</span><b id="wsRamLine" style="color:var(--blue)">Active Dynamic Flow</b></div>
+  <div class="chatkpi" style="border-left:2px solid var(--blue)"><span>RAM Completed</span><b id="wsRamJobs" style="color:var(--blue)">0 jobs</b></div>
+</div><label class="formlabel">LIVE EXPERT DISPATCH &amp; WORKSTATION ASSIGNMENT (INCOMING / OUTGOING)</label><div class="tablewrap" style="max-height:160px;margin-top:6px"><table style="font-size:11px"><thead><tr><th>Time</th><th>Expert ID</th><th>Direction / Flow</th><th>Assigned Workstation</th><th>Manager Action</th></tr></thead><tbody id="wsTurnoverBody"><tr><td colspan="5" class="empty">Waiting for expert task dispatches…</td></tr></tbody></table></div></div></div><div class="grid metrics"><div class="panel metric"><label>Generation speed (tok/s)</label><div class="value" id="gen">—</div><div class="sub" id="genfoot">Tokens / second (generation)</div></div><div class="panel metric"><label>Prefill speed (tok/s)</label><div class="value" id="prefill">—</div><div class="sub" id="prefillfoot">Prompt tokens / second (prefill)</div></div><div class="panel metric"><label>SSD read speed &amp; time</label><div class="value" id="readtime">0.00s</div><div class="sub" id="readops">0.00 MB/s · 0.00 MB read</div></div><div class="panel metric"><label>VRAM &amp; RAM read speed / time</label><div class="value" id="bytes">0.00 MB/s</div><div class="sub" id="disk">VRAM 0.00s · RAM 0.00s</div></div></div><div class="grid monitor"><div class="panel"><div class="head"><div><h2>Memory &amp; device headroom</h2><span class="muted">Host readings from available system probes</span></div><span class="pill" id="backendpill">CPU</span></div><div class="body"><div class="barrow"><div class="barlabel"><span>Selected GPU VRAM</span><b id="vramlabel">Unavailable</b></div><div class="bar"><div class="fill" id="vrambar"></div></div></div><div class="barrow"><div class="barlabel"><span>RAM used / 90% ceiling</span><b id="ramlabel">Unavailable</b></div><div class="bar"><div class="fill" id="rambar"></div></div></div><div class="barrow"><div class="barlabel"><span>MoE expert cache resident / safe budget</span><b id="cachelabel">Unavailable</b></div><div class="bar"><div class="fill" id="cachebar"></div></div></div><div class="barrow"><div class="barlabel"><span>Hottest 20% expert invocation share</span><b id="hotlabel">0%</b></div><div class="bar"><div class="fill" id="hotbar"></div></div></div><div class="barrow"><div class="barlabel"><span>Cold invocation share</span><b id="coldlabel">0%</b></div><div class="bar"><div class="fill warn" id="coldbar"></div></div></div><div class="devicegrid" id="devicegrid"></div><div class="explain" id="runtimeexplain">Runtime/backend details will appear when telemetry connects.</div><small>Tier I/O measures VRAM, RAM, and SSD cache/pager transfers; OS page cache may satisfy SSD reads without physical disk I/O.</small></div></div><div class="panel"><div class="head"><div><h2>Expert heat &amp; residency</h2><span class="muted">Heat is invocation frequency; click column header to sort</span></div><div class="row"><select id="heatTierFilter" class="input" style="padding:4px 8px;font-size:11px"><option value="all">All Tiers</option><option value="VRAM">VRAM</option><option value="RAM">RAM</option><option value="SSD">SSD</option></select><select id="heatLimitSelect" class="input" style="padding:4px 8px;font-size:11px" title="Number of experts to display"><option value="300">Show 300</option><option value="600">Show 600</option><option value="1050" selected>Show 1,050 (default)</option><option value="2100">Show 2,100</option><option value="0">Show All (4,944)</option></select><span class="pill" id="seen">0 seen</span></div></div><div class="tablewrap"><table><thead><tr><th style="width:40px">#</th><th class="sortable" data-col="expert_id">Expert ID</th><th class="sortable" data-col="tier_matched" style="text-align:center" title="Confirms expert is physically located in its designated storage tier">Tier Match ✅</th><th class="sortable" data-col="invocations">Calls</th><th class="sortable" data-col="share_percent">Share</th><th class="sortable" data-col="temperature">Heat</th><th class="sortable" data-col="tier">Storage tier</th><th class="sortable" data-col="cache_hits">RAM hits / SSD loads</th><th class="sortable" data-col="average_load_ms">Avg cache load</th><th class="sortable" data-col="vram_streamed_bytes">VRAM streamed</th><th class="sortable" data-col="ram_streamed_bytes">RAM streamed</th><th class="sortable" data-col="stream_bytes">SSD streamed</th><th class="sortable" data-col="active">Active</th></tr></thead><tbody id="heat"><tr><td colspan="13" class="empty">No expert cache activity yet.</td></tr></tbody></table></div></div></div><div class="panel" style="margin-top:15px"><div class="head"><div><h2>Detected GGUF inventory</h2><span class="muted">Architecture, quantization, and MTP metadata</span></div><button class="btn" onclick="loadModels()">Refresh</button></div><div class="tablewrap"><table><thead><tr><th>Model</th><th>Class</th><th>Architecture</th><th>Experts</th><th>Top-k</th><th>Layers</th><th>Quant</th></tr></thead><tbody id="modeltable"></tbody></table></div></div></section>
+
+<section class="view" id="workstationview">
+<div class="panel" style="margin-bottom:15px;border-left:3px solid var(--cyan)">
+  <div class="head">
+    <div>
+      <h2>🧠 Neural Workstation Manager: Live Dynamic Synapse Grid</h2>
+      <span class="muted">Real-time synaptic routing: Inbound Tokens ➔ Workshop Manager ➔ VRAM Power Tools vs RAM Hand-Labor Spillway</span>
+    </div>
+    <div class="row">
+      <span class="pill" id="canvasPulsePill" style="background:rgba(89,214,203,0.15);color:var(--cyan);border:1px solid rgba(89,214,203,0.4)">⚡ SYNAPSE ACTIVE</span>
+      <span class="pill" id="turnoverRatePill">1-Go : 1-In</span>
+    </div>
+  </div>
+  <div class="body" style="padding:16px">
+    <div style="position:relative;width:100%;height:440px;background:#070b12;border:1px solid #1a2638;border-radius:12px;overflow:hidden;box-shadow:inset 0 0 40px rgba(0,0,0,0.8)">
+      <canvas id="neuralCanvas" style="width:100%;height:100%;display:block"></canvas>
+      <div style="position:absolute;bottom:12px;left:14px;display:flex;gap:18px;font-size:11px;background:rgba(13,20,32,0.85);backdrop-filter:blur(6px);padding:6px 14px;border-radius:20px;border:1px solid #233247">
+        <span style="color:#59d6cb">● Inbound SSD Archival Stream</span>
+        <span style="color:#789cff">● Manager Synapse Hub</span>
+        <span style="color:#00ffcc">● High-Tech Tool (VRAM)</span>
+        <span style="color:#ffbd68">● Hand-Labor (RAM)</span>
+        <span style="color:#ff7887">● Stepped Out / Displaced (Go)</span>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<section class="view" id="modelsview"><div class="grid models"><div class="panel"><div class="head"><div><h2>Local GGUF files</h2><span class="muted">Scanned beneath selected directory</span></div><button class="btn" onclick="loadModels()">Refresh</button></div><div class="body"><label class="formlabel">CUSTOM MODEL FOLDER</label><div class="row"><input class="input" id="modeldir" style="flex:1" placeholder="/path/to/models"><button class="btn" id="setdir">Use folder</button></div><div class="hint" id="dirresult">Folder selection applies until restart; use MOE_MODELS_DIR to persist it.</div></div><div class="body" id="modelcards"><div class="empty">Loading…</div></div></div><div class="panel"><div class="head"><div><h2>Pull from Hugging Face</h2><span class="muted">GGUF files saved under models/</span></div><span class="pill">HF Hub</span></div><div class="body"><label class="formlabel">REPOSITORY ID</label><input class="input" style="width:100%" id="repo" placeholder="organization/model-GGUF"><label class="formlabel">FILES (OPTIONAL, COMMA SEPARATED)</label><input class="input" style="width:100%" id="files" placeholder="model-Q4_K_M.gguf"><div class="hint">Blank pulls every GGUF in the repo. Private repos use HF_TOKEN from the environment.</div><button class="btn primary" style="width:100%;margin-top:14px" id="pull">Start GGUF pull</button><div class="hint" id="pullstatus"></div><div class="progress"><i id="pullprogress"></i></div><small>Large repos can require significant bandwidth and SSD space. Pulls run in the background.</small></div></div></div></section>
+</main><div class="toast" id="toast"></div>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];let aborter=null,chatHistory=[],cachedHeatExperts=[],heatSortCol='invocations',heatSortAsc=false;
+const xMatch=x=>Boolean(x.tier_matched!==false&&((x.residency==='VRAM'&&((x.actual_location||'VRAM')==='VRAM'))||(x.residency==='RAM'&&((x.actual_location||'RAM')==='RAM'))||(x.residency==='SSD'&&((x.actual_location||'SSD')==='SSD'))));
+function renderHeatTable(){
+ let tb=$('#heat');if(!tb)return;
+ let list=[...cachedHeatExperts];
+ let filter=$('#heatTierFilter')?.value||'all';
+ if(filter!=='all'){
+  list=list.filter(x=>{
+   let res=(x.residency||'').toUpperCase();
+   let tier=(x.tier||'').toUpperCase();
+   if(filter==='VRAM')return res==='VRAM'||tier.includes('VRAM');
+   if(filter==='RAM')return (res==='RAM'||tier.includes('RAM'))&&!res.includes('VRAM')&&!tier.includes('VRAM');
+   if(filter==='SSD')return res==='SSD'||tier.includes('SSD');
+   return true;
+  });
+ }
+ if(heatSortCol){
+  list.sort((a,b)=>{
+   let va,vb;
+   if(heatSortCol==='expert_id'){
+    va=a.expert_id||'';vb=b.expert_id||'';
+    return heatSortAsc?va.localeCompare(vb):vb.localeCompare(va);
+   }else if(heatSortCol==='tier_matched'){
+    va=a.tier_matched?1:0;vb=b.tier_matched?1:0;
+   }else if(heatSortCol==='invocations'){
+    va=Number(a.invocations||0);vb=Number(b.invocations||0);
+   }else if(heatSortCol==='share_percent'){
+    va=Number(a.share_percent||0);vb=Number(b.share_percent||0);
+   }else if(heatSortCol==='temperature'){
+    const tempOrder={hot:3,warm:2,cold:1};
+    va=tempOrder[a.temperature]||0;vb=tempOrder[b.temperature]||0;
+   }else if(heatSortCol==='tier'){
+    const tierOrder=t=>{let s=(t||'').toUpperCase();return s.includes('VRAM')?3:(s.includes('RAM')?2:1)};
+    va=tierOrder(a.tier||a.residency);vb=tierOrder(b.tier||b.residency);
+   }else if(heatSortCol==='cache_hits'){
+    va=Number(a.cache_hits||0);vb=Number(b.cache_hits||0);
+   }else if(heatSortCol==='average_load_ms'){
+    va=Number(a.average_load_ms||0);vb=Number(b.average_load_ms||0);
+   }else if(heatSortCol==='vram_streamed_bytes'){
+    va=Number(a.vram_streamed_bytes||0);vb=Number(b.vram_streamed_bytes||0);
+   }else if(heatSortCol==='ram_streamed_bytes'){
+    va=Number(a.ram_streamed_bytes||0);vb=Number(b.ram_streamed_bytes||0);
+   }else if(heatSortCol==='stream_bytes'){
+    va=Number(a.stream_bytes||a.ssd_streamed_bytes||0);vb=Number(b.stream_bytes||b.ssd_streamed_bytes||0);
+   }else if(heatSortCol==='active'){
+    va=a.active?1:0;vb=b.active?1:0;
+   }else{
+    va=a[heatSortCol]||0;vb=b[heatSortCol]||0;
+   }
+   return heatSortAsc?(va>vb?1:(va<vb?-1:0)):(va<vb?1:(va>vb?-1:0));
+  });
+ }
+ $$('th.sortable').forEach(th=>{
+  th.classList.remove('asc','desc');
+  if(th.dataset.col===heatSortCol)th.classList.add(heatSortAsc?'asc':'desc');
+ });
+ tb.replaceChildren();
+ if(!list.length){
+  tb.innerHTML=`<tr><td colspan="13" class="empty">${cachedHeatExperts.length?'No experts match the tier filter.':'No expert cache activity. Prepare an expert map and activate expert routes to populate heat and residency.'}</td></tr>`;
+  return;
+ }
+ list.forEach((x,idx)=>{
+  let tr=document.createElement('tr');
+  let rowIdx=document.createElement('td');
+  rowIdx.textContent=idx+1;
+  rowIdx.style.color='var(--muted)';
+  rowIdx.style.fontSize='11px';
+  tr.append(rowIdx);
+  let isVram=(x.residency==='VRAM'||(x.tier||'').includes('VRAM'));
+  let tierHtml=isVram?`<span class="pill" style="background:#1b3c3b;color:var(--cyan);font-weight:700">VRAM</span>`:(x.tier||x.residency);
+  for(let [i,v] of [x.expert_id,xMatch(x)?`<span title="Confirmed: stored in ${x.residency}" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--cyan)"><input type="checkbox" checked disabled style="accent-color:var(--cyan);cursor:default">${x.residency}</span>`:`<span title="Mismatch" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--amber)"><input type="checkbox" disabled style="cursor:default;opacity:.4">${x.actual_location||x.residency}</span>`,x.invocations,Number(x.share_percent||0).toFixed(1)+'%',x.temperature,tierHtml,`${x.cache_hits||0} / ${x.ssd_loads||0}`,fmtTime(x.average_load_ms||0),fmtSize(x.vram_streamed_bytes||0),fmtSize(x.ram_streamed_bytes||0),fmtSize(x.stream_bytes||x.ssd_streamed_bytes||0),x.active?'yes':'—'].entries()){
+   let td=document.createElement('td');
+   if(i===1||(i===5&&isVram)){td.innerHTML=v;if(i===1)td.style.textAlign="center";}else td.textContent=v;
+   tr.append(td);
+  }
+  tb.append(tr);
+ });
+}
+document.addEventListener('click',e=>{
+ let th=e.target.closest('th.sortable');
+ if(th&&th.dataset.col){
+  if(heatSortCol===th.dataset.col){
+   heatSortAsc=!heatSortAsc;
+  }else{
+   heatSortCol=th.dataset.col;
+   heatSortAsc=false;
+  }
+  renderHeatTable();
+ }
+});
+$('#heatTierFilter')?.addEventListener('change',()=>renderHeatTable());
+$('#heatLimitSelect')?.addEventListener('change',()=>telemetry());
+$('#kvCacheSelect')?.addEventListener('change',async()=>{
+ let kv=$('#kvCacheSelect').value;
+ try{
+  await fetch('/api/runtime/kv-cache',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({type_kv:kv})});
+  toast(`KV Cache set to ${kv.toUpperCase()}`);
+ }catch(e){}
+});
+async function applyMaxRam(){
+ let val=$('#maxRamInput')?.value?.trim();
+ try{
+  let r=await fetch('/api/runtime/max-ram',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({max_ram:val||null})}),j=await r.json();
+  if(!r.ok)throw Error(j.detail||'Max RAM update failed');
+  let hintMsg=j.max_ram_bytes?`Max RAM capped at ${j.max_ram_formatted} (active budget: ${j.active_budget_formatted})`:`Max RAM unconstrained (active budget: ${j.active_budget_formatted})`;
+  $('#maxRamHint').textContent=hintMsg;
+  toast(j.max_ram_bytes?`Max RAM set to ${j.max_ram_formatted}`:'Max RAM limit cleared');
+  telemetry();
+ }catch(e){$('#maxRamHint').textContent='Max RAM error: '+e.message}
+}
+$('#applyMaxRamBtn')?.addEventListener('click',applyMaxRam);
+$('#maxRamInput')?.addEventListener('input',()=>{if($('#maxRamInput'))$('#maxRamInput').dataset.userTyped='true';});
+$('#maxRamInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();applyMaxRam();}});
+function toast(t){$('#toast').textContent=t;$('#toast').style.display='block';setTimeout(()=>$('#toast').style.display='none',3200)}
+function fmtSize(n){if(n==null||isNaN(n))return'—';let v=Math.max(0,Number(n)),gb=v/1073741824,mb=v/1048576;if(v>=1073741824)return gb.toFixed(2)+' GB';if(v===0)return'0.00 MB';return (mb<0.01?mb.toFixed(4):mb.toFixed(2))+' MB'}
+function fmtTime(ms){if(ms==null||isNaN(ms))return'—';let v=Math.max(0,Number(ms));if(v===0)return'0.00s';let s=v/1000;if(s>=3600){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=(s%60).toFixed(1);return`${h}h ${m}m ${sec}s`}if(s>=60){let m=Math.floor(s/60),sec=(s%60).toFixed(1);return`${m}m ${sec}s`}if(s>=1)return s.toFixed(2)+'s';return`${s.toFixed(2)}s (${v.toFixed(1)} ms)`}
+function fmtSpeed(mbs){if(mbs==null||isNaN(mbs))return'0.00 MB/s';let v=Math.max(0,Number(mbs));return v>=1024?(v/1024).toFixed(2)+' GB/s':v.toFixed(2)+' MB/s'}
+const bytes=fmtSize,mb=fmtSize;
+$$('.tab').forEach(b=>b.onclick=()=>{
+  $$('.tab').forEach(x=>x.classList.toggle('active',x===b));
+  $$('.view').forEach(x=>x.classList.toggle('active',x.id===b.dataset.view));
+  if(b.dataset.view === 'workstationview' && typeof window.resizeNeuralCanvas === 'function') {
+    setTimeout(window.resizeNeuralCanvas, 50);
+  }
+  telemetry();
+});
+function msg(cls,text){$('#welcome')?.remove();let e=document.createElement('div');e.className='msg '+cls;e.textContent=text;$('#chat').append(e);$('#chat').scrollTop=$('#chat').scrollHeight;return e}
+$('#clearChat').onclick=()=>{if(aborter)aborter.abort();chatHistory=[];$('#chat').innerHTML='<div class="empty" id="welcome">Conversation cleared. Send a prompt to start a new session.</div>'};
+async function applyMtp(){
+ let modeVal=$('#mtpMode').value,enabled=modeVal!=='off',mode=enabled?modeVal:'auto';
+ let num_tokens=Number($('#mtpTokens').value||4),ngram_n=Number($('#mtpNgram').value||2);
+ try{
+  let r=await fetch('/api/mtp',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled,mode,num_tokens,ngram_n})}),j=await r.json();
+  if(!r.ok)throw Error(j.detail||'MTP update failed');
+  $('#mtpPill').textContent=j.enabled?`MTP ${j.mode.toUpperCase()} (${j.num_tokens}t)`:'MTP OFF';
+  $('#mtpStatus').textContent=`MTP ${j.enabled?'enabled':'disabled'} · mode: ${j.mode} · draft: ${j.num_tokens} tok · ngram: ${j.ngram_n} · accepted: ${j.accepted_tokens}/${j.drafted_tokens} (${j.acceptance_rate_percent}%)`;
+  toast('MTP configuration applied');
+ }catch(e){$('#mtpStatus').textContent='MTP error: '+e.message}
+}
+$('#applyMtp').onclick=applyMtp;
+async function chat(){
+ let text=$('#prompt').value.trim(),option=$('#model').selectedOptions[0],model=option?.value,sys=$('#sysprompt')?.value.trim();
+ if(!text||aborter)return;if(!option?.value)return toast('Select a valid local GGUF');if(!model)return toast('Select a local GGUF model.');
+ $('#prompt').value='';msg('user',text);let out=msg('assistant',''),replyText='';out.classList.add('streaming');aborter=new AbortController();$('#send').disabled=true;$('#stop').disabled=false;
+ let messages=[];if(sys)messages.push({role:'system',content:sys});messages.push(...chatHistory,{role:'user',content:text});
+ let modeVal=$('#mtpMode').value,mtp={enabled:modeVal!=='off',mode:modeVal==='off'?'auto':modeVal,num_tokens:Number($('#mtpTokens').value||4),ngram_n:Number($('#mtpNgram').value||2)};
+ const started=performance.now();let firstTokenAt=null,usage=null,moeTel=null;
+ let syncTimer=null,pendingChars=[],lastSyncTime=performance.now();
+ function flushSync(){
+  if(pendingChars.length>0){
+   replyText+=pendingChars.join('');
+   pendingChars=[];
+   out.textContent=replyText;
+   $('#chat').scrollTop=$('#chat').scrollHeight;
+  }
+  lastSyncTime=performance.now();
+ }
+ syncTimer=setInterval(flushSync,300);
+ try{
+  let r=await fetch('/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},signal:aborter.signal,body:JSON.stringify({model,messages,temperature:Number($('#temp').value),max_tokens:Number($('#max').value),stream:true,mtp})});
+  if(!r.ok)throw Error(await r.text());let rd=r.body.getReader(),dec=new TextDecoder(),buf='';
+  while(true){let {value,done}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});let evs=buf.split(/\r?\n\r?\n/);buf=evs.pop();
+   for(let ev of evs)for(let ln of ev.split(/\r?\n/))if(ln.startsWith('data:')){let d=ln.slice(5).trim();if(!d||d==='[DONE]')continue;let j;try{j=JSON.parse(d)}catch(e){continue}if(j.error)throw Error(j.error.message);
+    let delta=j.choices?.[0]?.delta?.content||'';if(delta){
+     if(firstTokenAt===null)firstTokenAt=performance.now();
+     for(let char of delta)pendingChars.push(char);
+     if(performance.now()-lastSyncTime>=300)flushSync();
+    }
+    if(j.usage)usage=j.usage;
+    if(j.moe_telemetry)moeTel=j.moe_telemetry;
+   }
+  }
+  if(syncTimer){clearInterval(syncTimer);syncTimer=null}
+  flushSync();
+  out.classList.remove('streaming');
+  if(replyText)chatHistory.push({role:'user',content:text},{role:'assistant',content:replyText});
+  const finished=performance.now(),ttft=firstTokenAt===null?finished-started:firstTokenAt-started,genSeconds=Math.max(.001,(finished-(firstTokenAt??finished))/1000);
+  const completion=moeTel?.completion_tokens??usage?.completion_tokens??Math.max(1,Math.round(replyText.length/4));
+  const prompt=moeTel?.prompt_tokens??usage?.prompt_tokens??Math.max(1,Math.round(text.length/4));
+  const genRate=moeTel?.generation_tokens_per_second??(completion/genSeconds);
+  const prefillRate=moeTel?.prefill_tokens_per_second??(prompt/Math.max(.001,ttft/1000));
+  const promptEvalMs=(moeTel?.prompt_eval_seconds!=null?moeTel.prompt_eval_seconds*1000:ttft);
+  const genEvalMs=(moeTel?.generation_eval_seconds!=null?moeTel.generation_eval_seconds*1000:genSeconds*1000);
+  const tio=moeTel?.tier_io||{},vramIo=tio.vram||{},ramIo=tio.ram||{},ssdIo=tio.ssd||{};
+  const ssdReadMs=ssdIo.read_time_ms??moeTel?.ssd_read_time_ms??0,ssdReadBytes=ssdIo.read_bytes??moeTel?.total_read_bytes??0,ssdSpeed=ssdIo.read_speed_mbs??moeTel?.ssd_throughput_mbs??0;
+  const ramReadMs=ramIo.read_time_ms??0,ramReadBytes=ramIo.read_bytes??0,ramSpeed=ramIo.read_speed_mbs??0;
+  const vramReadMs=vramIo.read_time_ms??0,vramReadBytes=vramIo.read_bytes??0,vramSpeed=vramIo.read_speed_mbs??0;
+  const mtpInfo=moeTel?.mtp||{};
+  let meta=document.createElement('div');meta.className='msgmeta';
+  meta.textContent=`tok/s (prefill: ${Number(prefillRate).toFixed(2)} tok/s, generation: ${Number(genRate).toFixed(2)} tok/s) · Prompt: ${prompt} tok (${fmtTime(promptEvalMs)}) · Generated: ${completion} tok (${fmtTime(genEvalMs)}) · TTFT: ${fmtTime(ttft)} · Total: ${fmtTime(finished-started)} · SSD: ${fmtSpeed(ssdSpeed)} (${fmtTime(ssdReadMs)}, ${fmtSize(ssdReadBytes)}) · RAM: ${fmtSpeed(ramSpeed)} (${fmtTime(ramReadMs)}, ${fmtSize(ramReadBytes)}) · VRAM: ${fmtSpeed(vramSpeed)} (${fmtTime(vramReadMs)}, ${fmtSize(vramReadBytes)}) · MTP: ${mtpInfo.enabled?`${mtpInfo.last_accepted_tokens||0}/${mtpInfo.last_drafted_tokens||0} accepted`:'off'}`;
+  out.append(meta);
+  $('#chatPrefill').textContent=`${Number(prefillRate).toFixed(2)} / ${Number(genRate).toFixed(2)} tok/s`;
+  $('#chatVramIo').textContent=`${fmtSpeed(vramSpeed)} · ${fmtTime(vramReadMs)}`;
+  $('#chatRamIo').textContent=`${fmtSpeed(ramSpeed)} · ${fmtTime(ramReadMs)}`;
+  $('#chatReadTime').textContent=`${fmtSpeed(ssdSpeed)} · ${fmtTime(ssdReadMs)}`;
+  $('#chatReadSize').textContent=`SSD ${fmtSize(ssdReadBytes)} · RAM ${fmtSize(ramReadBytes)}`;
+  $('#chat').scrollTop=$('#chat').scrollHeight;
+  telemetry();
+ }catch(e){if(e.name==='AbortError')out.textContent+='\n[stopped]';else{out.className='msg error';out.textContent=e.message}}
+ finally{if(typeof syncTimer!=='undefined'&&syncTimer){clearInterval(syncTimer);syncTimer=null}if(typeof typeTimer!=='undefined'&&typeTimer){clearInterval(typeTimer);typeTimer=null}out.classList.remove('streaming');aborter=null;$('#send').disabled=false;$('#stop').disabled=true;}
+}
+$('#send').onclick=chat;$('#stop').onclick=()=>aborter?.abort();$('#prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();chat()}};
+async function loadModels(){try{let d=await fetch('/api/models').then(r=>r.json()),ms=d.models||[],sel=$('#model'),old=sel.value;sel.replaceChildren();for(let m of ms){let o=document.createElement('option');o.value=m.id;o.textContent=m.error?m.name+' · invalid':`${m.name} · ${m.classification} · ${m.architecture}`;o.disabled=!!m.error;sel.append(o)}if(!ms.length){let o=document.createElement('option');o.value='';o.textContent='No GGUF models';sel.append(o)}if(ms.some(m=>m.id===old))sel.value=old;let selectedModel=ms.find(m=>m.id===sel.value);$('#modelhint').textContent=selectedModel?`Native llama.cpp runtime · ${ms.filter(m=>!m.error).length} readable GGUF · ${d.models_dir||'models/'}`:`No readable GGUF files · ${d.models_dir||'models/'}`;if(document.activeElement!==$('#modeldir'))$('#modeldir').value=d.models_dir||'';$('#backend').textContent='Inference runtime: llama.cpp (in-process)';let cards=$('#modelcards'),table=$('#modeltable');cards.replaceChildren();table.replaceChildren();for(let m of ms){let row=document.createElement('div');row.className='model';row.innerHTML=`<div class="row"><b class="modelname"></b><span class="pill"></span></div><small class="muted"></small>`;row.querySelector('b').textContent=m.name;row.querySelector('.pill').textContent=m.error?'Invalid':m.classification;row.querySelector('small').textContent=m.error||`${fmtSize(m.size_bytes)} · ${m.architecture} · ${m.tensor_count} tensors · quant ${m.quantization??'?'} · MTP ready`;cards.append(row);let tr=document.createElement('tr');[m.name,m.classification||'Invalid',m.architecture||m.error,m.expert_count??'—',m.active_experts??'—',m.block_count??'—',m.quantization??'—'].forEach(x=>{let td=document.createElement('td');td.textContent=x;tr.append(td)});table.append(tr)}if(!ms.length){cards.innerHTML='<div class="empty">No GGUF files detected.</div>';table.innerHTML='<tr><td colspan="7" class="empty">No GGUF files detected.</td></tr>'}$('#status').textContent='Local service connected';runtimeStatus()}catch(e){$('#status').textContent='Service unavailable';toast(e.message)}}
+function pctbar(bar,label,v,max,unit=''){let p=max?Math.min(100,Math.max(0,v/max*100)):0;$(bar).style.width=p+'%';let u=unit.trim();if(u==='bytes')$(label).textContent=`${fmtSize(v)} / ${fmtSize(max)}`;else if(u==='MB')$(label).textContent=`${fmtSize((v||0)*1048576)} / ${fmtSize((max||0)*1048576)}`;else $(label).textContent=`${Number(v||0).toFixed(1)}${unit}${max?' / '+Number(max).toFixed(1)+unit:''}`}
+async function telemetry(){try{
+ let limitVal=$('#heatLimitSelect')?.value||'1050';let t=await fetch('/api/telemetry?limit='+limitVal).then(r=>r.json()),p=t.performance||{},d=t.disk||{},tio=t.tier_io||{},m=t.memory||{},runtime=t.runtime||{},cache=t.cache||{},mtp=t.mtp||runtime.mtp||{},h=t.expert_heat||{};
+ let genVal=p.generation_tokens_per_second==null?'—':Number(p.generation_tokens_per_second).toFixed(2)+' tok/s';
+ let preVal=p.prefill_tokens_per_second==null?'—':Number(p.prefill_tokens_per_second).toFixed(2)+' tok/s';
+ $('#gen').textContent=genVal;
+ $('#genfoot').textContent=p.last_completion_tokens?`${p.last_completion_tokens} tok in ${fmtTime((p.last_generation_eval_seconds||0)*1000)} (${p.generation_speed_is_estimated?'estimated':'exact'})`:'Tokens / second (generation)';
+ $('#prefill').textContent=preVal;
+ $('#prefillfoot').textContent=p.last_prompt_tokens?`${p.last_prompt_tokens} prompt tok in ${fmtTime((p.last_prompt_eval_seconds||0)*1000)} · TTFT ${fmtTime((p.last_time_to_first_token_seconds||0)*1000)}`:'Prompt tokens / second (prefill)';
+ let vramIo=tio.vram||{},ramIo=tio.ram||{},ssdIo=tio.ssd||{};
+ let ssdTimeStr=fmtTime(ssdIo.read_time_ms??d.time_used_for_reading_ms??0),ssdSizeStr=fmtSize(ssdIo.read_bytes??d.bytes_read??0),ssdRateStr=fmtSpeed(ssdIo.read_speed_mbs??d.actual_ssd_throughput_mbs??0);
+ let ramTimeStr=fmtTime(ramIo.read_time_ms??0),ramSizeStr=fmtSize(ramIo.read_bytes??0),ramRateStr=fmtSpeed(ramIo.read_speed_mbs??0);
+ let vramTimeStr=fmtTime(vramIo.read_time_ms??0),vramSizeStr=fmtSize(vramIo.read_bytes??0),vramRateStr=fmtSpeed(vramIo.read_speed_mbs??0);
+ $('#readtime').textContent=`${ssdRateStr} · ${ssdTimeStr}`;$('#readops').textContent=`Total SSD read: ${ssdSizeStr} (${d.read_ops||0} ops)`;
+ $('#bytes').textContent=`RAM ${ramRateStr} · VRAM ${vramRateStr}`;$('#disk').textContent=`RAM: ${ramTimeStr} (${ramSizeStr}) · VRAM: ${vramTimeStr} (${vramSizeStr})`;
+ if(p.generation_tokens_per_second!=null||p.prefill_tokens_per_second!=null){
+  let gStr=p.generation_tokens_per_second!=null?Number(p.generation_tokens_per_second).toFixed(2)+' tok/s':'—';
+  let pStr=p.prefill_tokens_per_second!=null?Number(p.prefill_tokens_per_second).toFixed(2)+' tok/s':'—';
+  $('#chatPrefill').textContent=`${pStr} / ${gStr}`;
+ }
+ $('#chatVramIo').textContent=`${vramRateStr} · ${vramTimeStr}`;
+ $('#chatRamIo').textContent=`${ramRateStr} · ${ramTimeStr}`;
+ $('#chatReadTime').textContent=`${ssdRateStr} · ${ssdTimeStr}`;
+ $('#chatReadSize').textContent=`SSD ${ssdSizeStr} · RAM ${ramSizeStr}`;
+ 
+ let isGenerating=Boolean(aborter);
+ let vramActive=(vramIo.read_speed_mbs||0)>0||(vramIo.read_time_ms||0)>0||isGenerating;
+ let ramActive=(ramIo.read_speed_mbs||0)>0||(ramIo.read_time_ms||0)>0||isGenerating;
+ let ssdActive=(ssdIo.read_speed_mbs||0)>0||(d.actual_ssd_throughput_mbs||0)>0;
+ 
+ $('#kpiPrefill')?.classList.toggle('active-gen',isGenerating);
+ $('#kpiVram')?.classList.toggle('active-io',vramActive);
+ $('#kpiRam')?.classList.toggle('active-io',ramActive);
+ $('#kpiSsd')?.classList.toggle('active-io',ssdActive);
+ $('#kpiTotal')?.classList.toggle('active-io',vramActive||ramActive||ssdActive);
+ if(runtime.kv_cache_type_k){
+ let k=runtime.kv_cache_type_k.toLowerCase();
+ if($('#kvCacheSelect')&&document.activeElement!==$('#kvCacheSelect')){
+  if(k.includes('q4'))$('#kvCacheSelect').value='q4_0';
+  else if(k.includes('q8'))$('#kvCacheSelect').value='q8_0';
+  else if(k.includes('f16')||k.includes('16'))$('#kvCacheSelect').value='f16';
+ }
+}
+if(mtp.enabled!=null){$('#mtpPill').textContent=mtp.enabled?`MTP ${(mtp.mode||'auto').toUpperCase()} (${mtp.num_tokens||4}t)`:'MTP OFF';$('#mtpStatus').textContent=`MTP ${mtp.enabled?'enabled':'disabled'} · mode: ${mtp.mode||'auto'} · accepted: ${mtp.accepted_tokens||0}/${mtp.drafted_tokens||0} (${mtp.acceptance_rate_percent||0}%) · est. speedup ${mtp.estimated_speedup_factor||1}x`}
+ $('#backendpill').textContent=`${runtime.backend||m.backend||'CPU'} live · ${runtime.build_backend||'unknown'} build`;
+ let devices=m.gpu||[],selected=devices.find(x=>x.backend===(runtime.backend||m.backend)&&x.device_type!=='cpu'&&x.vram_total_mb)||devices.find(x=>x.backend==='cuda'&&x.vram_total_mb)||devices.find(x=>x.vram_total_mb&&x.device_type!=='cpu');
+ let ts=(h.tier_sizes)||{};
+ let qe_obj = cache.queue_engine || t.queue_engine || {};
+ let tw_obj = qe_obj.tool_workstation_vram || {};
+ let hw_obj = qe_obj.hand_workstation_ram || {};
+ let avgExpBytes = 2506752;
+
+ let vramExpCount = tw_obj.occupied_tool_slots != null ? tw_obj.occupied_tool_slots : (ts.vram?.expert_count || 0);
+ let vramBytes = vramExpCount * avgExpBytes;
+
+ let ramExpCount = hw_obj.occupied_ram_slots != null ? hw_obj.occupied_ram_slots : (ts.ram?.expert_count || 0);
+ let ramBytes = ramExpCount > 0 ? ramExpCount * avgExpBytes : (cache.resident_bytes || 0);
+
+ let totalExperts = 4944;
+ let ssdExpCount = Math.max(0, totalExperts - vramExpCount - ramExpCount);
+ let ssdBytes = ssdExpCount * avgExpBytes;
+
+ if($('#vramLoadedVal'))$('#vramLoadedVal').textContent = fmtSize(vramBytes);
+ if($('#vramLoadedSub'))$('#vramLoadedSub').textContent = `${vramExpCount} experts in GPU VRAM`;
+ if($('#ramLoadedVal'))$('#ramLoadedVal').textContent = fmtSize(ramBytes);
+ if($('#ramLoadedSub'))$('#ramLoadedSub').textContent = `${ramExpCount} experts staged in DDR RAM`;
+ if($('#ssdLoadedVal'))$('#ssdLoadedVal').textContent = fmtSize(ssdBytes);
+ if($('#ssdLoadedSub'))$('#ssdLoadedSub').textContent = `${ssdExpCount} experts on SSD / disk`;
+
+ let vramBar=$('#vrambar');if(selected){pctbar('#vrambar','#vramlabel',selected.vram_used_mb,selected.vram_total_mb,'MB');let pct=(selected.vram_used_mb/selected.vram_total_mb)*100,freeMb=selected.vram_free_mb!=null?selected.vram_free_mb:(selected.vram_total_mb-selected.vram_used_mb);vramBar.classList.toggle('warn',pct>=90||freeMb<120);}else{vramBar.style.width='0';vramBar.classList.remove('warn');$('#vramlabel').textContent='No device VRAM probe available'}
+ let dg=$('#devicegrid');dg.replaceChildren();if(!devices.length)dg.innerHTML='<div class="devicecard"><b>No accelerator devices detected</b><span>CPU inference remains available.</span></div>';for(let x of devices){let card=document.createElement('div');card.className='devicecard';let title=document.createElement('b'),detail=document.createElement('span');title.textContent=`${x.backend.toUpperCase()} · ${x.name}`;detail.textContent=`${x.device_type||'device'}${x.vram_total_mb?` · ${fmtSize(x.vram_used_mb*1048576)} used / ${fmtSize(x.vram_total_mb*1048576)} total`:' · VRAM unavailable'}${x.utilization_percent==null?'':` · ${x.utilization_percent}% busy`}`;card.append(title,detail);dg.append(card)}
+ let ram=m.ram||{};if(ram.total_bytes){pctbar('#rambar','#ramlabel',ram.used_bytes,ram.allocatable_ceiling_bytes,'bytes');let maxNote=ram.max_ram_formatted?` · max limit ${ram.max_ram_formatted}`:'';$('#ramlabel').textContent=`${fmtSize(ram.used_bytes)} / ${fmtSize(ram.allocatable_ceiling_bytes)} ceiling (${fmtSize(ram.available_bytes)} free of ${fmtSize(ram.total_bytes)})${maxNote}`;$('#chatRam').textContent=`${fmtSize(ram.used_bytes)} / ${fmtSize(ram.total_bytes)}`;if($('#maxRamInput')&&document.activeElement!==$('#maxRamInput')&&!$('#maxRamInput').dataset.userTyped){if(ram.max_ram_bytes){$('#maxRamInput').value=ram.max_ram_formatted;$('#maxRamHint').textContent=`Max RAM capped at ${ram.max_ram_formatted} (allocatable ceiling: ${fmtSize(ram.allocatable_ceiling_bytes)})`;}}}
+ pctbar('#cachebar','#cachelabel',cache.resident_bytes||0,cache.ram_budget_bytes||0,'bytes');
+ let vc=cache.vram||{},tiers=cache.tiers||{};let vramNote=vc.available?`${fmtSize(vc.resident_bytes||0)} staged · ${vc.cached_experts?.length||0} hot experts · ${fmtSize(vc.free_bytes||0)} free reported`:'Unavailable · '+(vc.disabled_reason||'CUDA unavailable');h=t.expert_heat||{};$('#hotlabel').textContent=(h.hot_invocation_percent||0).toFixed(1)+'%';$('#hotbar').style.width=(h.hot_invocation_percent||0)+'%';$('#coldlabel').textContent=(h.cold_invocation_percent||0).toFixed(1)+'%';$('#coldbar').style.width=(h.cold_invocation_percent||0)+'%';$('#seen').textContent=`${h.experts_seen||0} seen · ${h.indexed_experts||0} indexed`;
+ if(t.tier_optimizer&&t.tier_optimizer.status==='optimized'){let as=t.tier_optimizer.active_settings||{},tv=(as.vram||{}).calibrated_read_speed_formatted||vramRateStr,tr=(as.ram||{}).calibrated_read_speed_formatted||ramRateStr,ts=((t.tier_optimizer.after||{}).tier_io||{}).ssd?.read_speed_formatted||ssdRateStr;$('#tierOptimizeStatus').textContent=`Tuned (${t.tier_optimizer.elapsed_ms} ms) · VRAM: ${tv} · RAM: ${tr} (${(as.ram||{}).best_threads||'?'}t) · SSD: ${ts}`;}
+ $('#runtimeexplain').textContent=`llama.cpp build: ${runtime.build_backend||'unknown'}; active backend: ${runtime.backend||'CPU'}; GPU layers: ${runtime.gpu_layers||0}; threads: ${runtime.threads||'?'}/${runtime.threads_batch||'?'}; batch: ${runtime.batch_size||'?'}. tok/s (prefill: ${preVal}, generation: ${genVal}) · Tier I/O — SSD: ${ssdRateStr} (${ssdTimeStr}, ${ssdSizeStr}) | RAM: ${ramRateStr} (${ramTimeStr}, ${ramSizeStr}) | VRAM: ${vramRateStr} (${vramTimeStr}, ${vramSizeStr}). MTP: ${mtp.enabled?'enabled':'disabled'} (${mtp.accepted_tokens||0}/${mtp.drafted_tokens||0} accepted, ${mtp.acceptance_rate_percent||0}%). Expert cache: ${fmtSize(cache.resident_bytes||0)} in RAM (tiers: ${tiers.vram?.length||0} VRAM, ${tiers.ram?.length||0} RAM, ${tiers.ssd?.length||0} SSD). VRAM hot-expert cache: ${vramNote}.`;
+   // Render Live Workshop Workstation Turnover & In/Go Queue
+  let qe = cache.queue_engine || t.queue_engine;
+  if(qe){
+    let tw = qe.tool_workstation_vram || {}, hw = qe.hand_workstation_ram || {};
+    if($('#wsVramChairs')) $('#wsVramChairs').textContent = `${tw.occupied_tool_slots||0} / ${tw.total_tool_slots||443}`;
+    if($('#wsVramGo')) $('#wsVramGo').textContent = `${tw.displaced_people||0} displaced`;
+    let sharedWaiting = (qe.shared_queue_line != null ? qe.shared_queue_line : (tw.waiting_line_length || 0));
+    if($('#wsQueueLine')) $('#wsQueueLine').textContent = `${sharedWaiting} waiting (unlimited line)`;
+    if($('#wsRamLine')) $('#wsRamLine').textContent = (hw.jobs_completed > 0 ? `${hw.jobs_completed} absorbed` : 'Active Dynamic Flow');
+    if($('#wsVramJobs')) $('#wsVramJobs').textContent = `${tw.jobs_completed||0} completed`;
+    if($('#wsRamChairs')) $('#wsRamChairs').textContent = `${hw.occupied_ram_slots||0} / ${hw.total_ram_slots||4906}`;
+    if($('#wsRamGo')) $('#wsRamGo').textContent = `${hw.displaced_ram_slots||0} displaced`;
+    if($('#wsRamJobs')) $('#wsRamJobs').textContent = `${hw.jobs_completed||0} completed`;
+    if($('#wsRatioPill')) $('#wsRatioPill').textContent = tw.auto_adjust_ratio ? 'Auto In-and-Go' : 'Fixed In-and-Go';
+
+    let tbody = $('#wsTurnoverBody');
+    if(tbody){
+      let events = (qe.recent_turnover_events || []).slice(-15).reverse();
+      if(events.length > 0){
+        tbody.innerHTML = events.map(ev => {
+          let isGo = ev.direction && ev.direction.includes('GO');
+          let tagColor = isGo ? '#ff835f' : '#59d6cb';
+          let timeStr = ev.time ? new Date(ev.time * 1000).toLocaleTimeString() : '';
+          return `<tr>
+            <td style="color:var(--muted)">${timeStr}</td>
+            <td style="font-weight:600;font-family:monospace">${ev.expert_id||'—'}</td>
+            <td><span class="pill" style="background:rgba(255,255,255,0.06);color:${tagColor};font-weight:700">${ev.direction||'—'}</span></td>
+            <td>${ev.workstation||'—'}</td>
+            <td style="color:var(--muted)">${ev.action||'—'}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+  }
+
+  cachedHeatExperts=h.experts||[];
+  renderHeatTable();
+ }catch(e){$('#status').textContent='Telemetry unavailable'}}
+
+function getUiSettings(){
+ return {
+  kv_cache: $('#kvCacheSelect')?.value||'q8_0',
+  vram_tier_mode: $('#vramTierMode')?.value||'expert_staging',
+  max_ram: $('#maxRamInput')?.value?.trim()||'',
+  mtp_mode: $('#mtpMode')?.value||'auto',
+  mtp_tokens: Number($('#mtpTokens')?.value||4),
+  mtp_ngram: Number($('#mtpNgram')?.value||2),
+  sysprompt: $('#sysprompt')?.value||'',
+  temp: Number($('#temp')?.value||0.7),
+  max_tokens: Number($('#max')?.value||1024),
+  model: $('#model')?.value||''
+ };
+}
+
+function applyUiSettings(s){
+ if(!s)return;
+ if(s.kv_cache&&$('#kvCacheSelect'))$('#kvCacheSelect').value=s.kv_cache;
+ if(s.vram_tier_mode&&$('#vramTierMode'))$('#vramTierMode').value=s.vram_tier_mode;
+ if(s.max_ram!=null&&$('#maxRamInput')&&document.activeElement!==$('#maxRamInput')){
+  $('#maxRamInput').value=s.max_ram;
+  if(s.max_ram)$('#maxRamHint').textContent=`Max RAM set to ${s.max_ram}`;
+ }
+ if(s.mtp_mode&&$('#mtpMode'))$('#mtpMode').value=s.mtp_mode;
+ if(s.mtp_tokens!=null&&$('#mtpTokens'))$('#mtpTokens').value=s.mtp_tokens;
+ if(s.mtp_ngram!=null&&$('#mtpNgram'))$('#mtpNgram').value=s.mtp_ngram;
+ if(s.sysprompt!=null&&$('#sysprompt'))$('#sysprompt').value=s.sysprompt;
+ if(s.temp!=null&&$('#temp'))$('#temp').value=s.temp;
+ if(s.max_tokens!=null&&$('#max'))$('#max').value=s.max_tokens;
+}
+
+function saveLocalSettings(modelId){
+ let s=getUiSettings();
+ try{
+  localStorage.setItem('moe_boost_settings',JSON.stringify(s));
+  if(modelId)localStorage.setItem('moe_boost_settings_'+modelId,JSON.stringify(s));
+ }catch(e){}
+ fetch('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({[modelId||'global']:s,last_used:s})}).catch(()=>{});
+}
+
+function loadLocalSettings(modelId){
+ try{
+  let raw=modelId?localStorage.getItem('moe_boost_settings_'+modelId):null;
+  if(!raw)raw=localStorage.getItem('moe_boost_settings');
+  if(raw){
+   let parsed=JSON.parse(raw);
+   applyUiSettings(parsed);
+  }
+ }catch(e){}
+}
+
+async function restorePersistedSettings(){
+ try{
+  let r=await fetch('/api/settings'),j=await r.json();
+  if(j&&j.last_used)applyUiSettings(j.last_used);
+ }catch(e){}
+ loadLocalSettings();
+}
+
+$('#model')?.addEventListener('change',()=>{
+ let mid=$('#model').value;
+ if(mid)loadLocalSettings(mid);
+});
+['kvCacheSelect','vramTierMode','maxRamInput','mtpMode','mtpTokens','mtpNgram','sysprompt','temp','max'].forEach(id=>{
+ $('#'+id)?.addEventListener('change',()=>{saveLocalSettings($('#model')?.value);});
+});
+function setSideCollapsed(col){
+ let grid=$('.chatgrid');if(!grid)return;
+ grid.classList.toggle('collapsed',col);
+ let btn=$('#toggleSideBtn');
+ if(btn){
+  btn.textContent=col?'⚙️ Open Settings':'⚙️ Close Settings';
+  btn.classList.toggle('primary',col);
+ }
+}
+$('#toggleSideBtn').onclick=()=>{let grid=$('.chatgrid');if(grid)setSideCollapsed(!grid.classList.contains('collapsed'))};
+$('#closeSideBtn').onclick=()=>setSideCollapsed(true);
+async function runtimeStatus(){try{let r=await fetch('/api/runtime'),j=await r.json();let isLoaded=Boolean(j.model_path);$('#runtimeStatus').textContent=isLoaded?`Loaded: ${j.model_path} · ${j.backend.toUpperCase()} · ${j.gpu_layers} GPU layers${j.fallback_reason?' · '+j.fallback_reason:''}`:'Runtime model is not loaded.';if(isLoaded&&window._autoCollapsedOnLoad==null){window._autoCollapsedOnLoad=true;setSideCollapsed(true);}}catch(e){$('#runtimeStatus').textContent='Runtime status unavailable: '+e.message}}
+$('#runtimeLoad').onclick=async()=>{
+ let model_id=$('#model').value;
+ if(!model_id)return;
+ let kv_type=$('#kvCacheSelect')?.value||'q8_0';
+ let tier_mode=$('#vramTierMode')?.value||'expert_staging';
+ let is_staging=tier_mode==='expert_staging';
+ let max_ram=$('#maxRamInput')?.value?.trim()||null;
+ let mtp_mode=$('#mtpMode')?.value||'auto';
+ let mtp_enabled=mtp_mode!=='off';
+ let mtp_num_tokens=Number($('#mtpTokens')?.value||4);
+ let mtp_ngram_n=Number($('#mtpNgram')?.value||2);
+ let sysprompt=$('#sysprompt')?.value?.trim()||null;
+ let temp=Number($('#temp')?.value||0.7);
+ let max_tokens=Number($('#max')?.value||1024);
+ saveLocalSettings(model_id);
+ $('#runtimeStatus').textContent=`Loading GGUF in llama.cpp (${is_staging?'Expert Staging Mode':'Layer Offload'}, KV: ${kv_type.toUpperCase()})…`;
+ try{
+  let r=await fetch('/api/runtime/load',{
+   method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({
+    model_id,
+    kv_cache_type_k:kv_type,
+    kv_cache_type_v:kv_type,
+    max_ram,
+    moe_staging_mode:is_staging,
+    gpu_layers:is_staging?0:null,
+    mtp_enabled,
+    mtp_mode,
+    mtp_num_tokens,
+    mtp_ngram_n,
+    temperature:temp,
+    max_tokens,
+    system_prompt:sysprompt
+   })
+  }),j=await r.json();
+  if(!r.ok)throw Error(j.detail?.message||j.detail||'runtime load failed');
+  $('#runtimeStatus').textContent=`Loaded: ${j.model_path} · ${j.backend.toUpperCase()} · ${j.gpu_layers} GPU layers · ${j.load_plan.strategy}. Est. VRAM weights ${fmtSize(j.load_plan.estimated_vram_model_weights_bytes)}; host working set ${fmtSize(j.load_plan.estimated_host_working_set_bytes)}; projected free RAM ${fmtSize(j.load_plan.estimated_ram_available_after_bytes)}.${j.fallback_reason?' · '+j.fallback_reason:''}`;
+  toast('Settings saved and model loaded');
+  setSideCollapsed(true);
+  telemetry();
+ }catch(e){$('#runtimeStatus').textContent='Runtime load failed: '+e.message}
+};
+async function pollOptimization(jobId){try{let j=await fetch('/api/runtime/optimize/'+jobId).then(r=>r.json());let el=$('#optimizeStatus');if(j.status==='completed'){let b=j.result.best,c=b.config;el.textContent=`Optimization complete: ${j.result.passed}/${j.result.tested} passed, ${j.result.skipped} skipped. Selected ctx ${c.context_size}, batch ${c.batch_size}, threads ${c.threads}; generation ${b.generation_tokens_per_second} tok/s; prefill proxy ${b.prefill_tokens_per_second_proxy} tok/s; score ${b.score}. Winning configuration is loaded.`;toast('Best measured configuration loaded');runtimeStatus();telemetry();return}if(j.status==='failed'){el.textContent='Optimization failed: '+(typeof j.error==='string'?j.error:JSON.stringify(j.error));return}el.textContent=`Auto-optimizing · ${j.stage||j.status} · ${j.progress||0}/${j.total||'…'} candidates checked. The benchmark reloads the model between trials to avoid accumulated memory.`;setTimeout(()=>pollOptimization(jobId),1800)}catch(e){$('#optimizeStatus').textContent='Optimization status unavailable: '+e.message}}
+$('#autoOptimize').onclick=async()=>{let model_id=$('#model').value;if(!model_id)return toast('Select a GGUF model first');let btn=$('#autoOptimize');btn.disabled=true;$('#optimizeStatus').textContent='Starting memory-aware benchmark…';try{let r=await fetch('/api/runtime/optimize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model_id,max_context:4096})}),j=await r.json();if(!r.ok)throw Error(j.detail?.message||j.detail||'Could not start optimizer');pollOptimization(j.job_id)}catch(e){$('#optimizeStatus').textContent='Optimizer could not start: '+e.message}finally{btn.disabled=false}};
+$('#runtimeUnload').onclick=async()=>{try{let r=await fetch('/api/runtime/unload',{method:'POST'}),j=await r.json();$('#runtimeStatus').textContent=j.error||`Native runtime model unloaded · reclaimed ${fmtSize(j.ram_reclaimed_bytes||0)} system RAM.`;telemetry()}catch(e){$('#runtimeStatus').textContent='Unload failed: '+e.message}};
+async function checkFit(){let id=$('#model').value;if(!id)return;$('#fitresult').textContent='Calculating fit estimate…';try{let r=await fetch('/api/models/load-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model_id:id})}),p=await r.json();if(!r.ok)throw Error(p.detail);$('#fitresult').textContent=`${p.verdict}: ${p.strategy}. GGUF ${fmtSize(p.model_file_bytes)}; estimated VRAM weights ${fmtSize(p.estimated_vram_model_weights_bytes)}; host working set ${fmtSize(p.estimated_host_working_set_bytes)}; free RAM before ${fmtSize(p.ram_available_before_bytes)}; estimated free RAM after ${fmtSize(p.estimated_ram_available_after_bytes)}; protected RAM target ${p.ram_reserve_percent}%. Active expert window ${fmtSize(p.estimated_active_expert_window_bytes)}. ${p.note}`}catch(e){$('#fitresult').textContent='Fit check failed: '+e.message}}
+$('#fitcheck').onclick=checkFit;$('#model').onchange=checkFit;
+$('#prepare').onclick=async()=>{let id=$('#model').value;if(!id)return;$('#prepareresult').textContent='Checking fit and indexing GGUF expert slices…';try{let r=await fetch('/api/models/load',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model_id:id})}),j=await r.json();if(!r.ok)throw Error(j.detail?.message||j.detail||'prepare failed');$('#prepareresult').textContent=`Prepared ${j.indexed_experts} expert slices; warm-staged ${j.warm_staged_experts.length}. Plan: ${j.plan.strategy}. Profile saved beside the model at ${j.expert_data_dir}.`;toast('GGUF expert map prepared');telemetry()}catch(e){$('#prepareresult').textContent='Prepare failed: '+e.message}};
+$('#optimizeTiers').onclick=async()=>{let btn=$('#optimizeTiers'),id=$('#model').value||null;btn.disabled=true;$('#tierOptimizeStatus').textContent='Optimizing VRAM stream/DMA, RAM AVX2 threads & hugepages, and SSD sequential prefetch…';try{let r=await fetch('/api/tiers/optimize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model_id:id})}),j=await r.json();if(!r.ok)throw Error(j.detail?.message||j.detail||'Tier optimization failed');let as=j.active_settings||{},afterIo=(j.after||{}).tier_io||{},tv=(as.vram||{}).calibrated_read_speed_formatted||(afterIo.vram||{}).read_speed_formatted||'0.00 MB/s',tr=(as.ram||{}).calibrated_read_speed_formatted||(afterIo.ram||{}).read_speed_formatted||'0.00 MB/s',ts=(afterIo.ssd||{}).read_speed_formatted||'0.00 MB/s';$('#tierOptimizeStatus').textContent=`Optimized in ${j.elapsed_ms} ms · VRAM: ${tv} · RAM: ${tr} (${(as.ram||{}).best_threads||'?'}t) · SSD: ${ts} · [${(j.optimizations_applied||[]).join(', ')}]`;toast('VRAM, RAM & SSD optimized');telemetry()}catch(e){$('#tierOptimizeStatus').textContent='Tier optimize failed: '+e.message}finally{btn.disabled=false}};
+$('#unload').onclick=async()=>{let id=$('#model').value;if(!id)return;$('#unloadresult').textContent='Waiting for active expert leases & dropping caches…';try{let r=await fetch('/api/models/unload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model_id:id,timeout_seconds:10,drop_page_cache:true})}),j=await r.json();if(!r.ok)throw Error(j.detail);$('#unloadresult').textContent=j.unloaded?`Unloaded ${fmtSize(j.freed_bytes)} RAM cache (${fmtSize(j.freed_vram_bytes||0)} VRAM); OS page cache dropped: ${j.page_cache_dropped?'yes':'no'}; cache remaining ${fmtSize(j.ram_cache_bytes_remaining)}.`:`Still active: ${(j.blocked_by_active_experts||[]).join(', ')}`;telemetry()}catch(e){$('#unloadresult').textContent='Unload failed: '+e.message}};
+$('#dropAllCaches').onclick=async()=>{$('#unloadresult').textContent='Dropping runtime model, RAM/VRAM expert caches, and OS page cache…';try{let r=await fetch('/api/cache/drop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({unload_runtime:true,drop_page_cache:true})}),j=await r.json();if(!r.ok)throw Error(j.detail);$('#unloadresult').textContent=`Dropped all caches: ${j.freed_ram_cache_formatted} RAM cache, ${j.freed_vram_formatted} VRAM, ${j.page_cache_files_dropped} GGUF page-cache files evicted, ${j.system_ram_reclaimed_formatted} system RAM reclaimed.`;runtimeStatus();telemetry();toast('All model & OS caches dropped')}catch(e){$('#unloadresult').textContent='Drop caches failed: '+e.message}};
+$('#setdir').onclick=async()=>{try{let r=await fetch('/api/models/directory',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:$('#modeldir').value.trim()})}),j=await r.json();if(!r.ok)throw Error(j.detail);$('#dirresult').textContent='Using '+j.models_dir;await loadModels()}catch(e){$('#dirresult').textContent=e.message}};
+$('#pull').onclick=async()=>{let repo=$('#repo').value.trim(),files=$('#files').value.split(',').map(x=>x.trim()).filter(Boolean);if(!repo)return toast('Enter namespace/repository');$('#pull').disabled=true;try{let r=await fetch('/api/models/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({repo_id:repo,files:files.length?files:null})}),j=await r.json();if(!r.ok)throw Error(j.detail);watchPull(j.job_id)}catch(e){$('#pullstatus').textContent=e.message;$('#pull').disabled=false}};
+async function watchPull(id){try{let j=await fetch('/api/models/pulls/'+id).then(r=>r.json());$('#pullprogress').style.width=(j.total_files?100*j.completed_files/j.total_files:0)+'%';$('#pullstatus').textContent=j.status==='error'?'Failed: '+j.error:`${j.status} ${j.current_file||''} · ${j.completed_files||0}/${j.total_files||'…'}`;if(j.status==='complete'){toast('Hugging Face pull complete');$('#pull').disabled=false;loadModels();return}if(['error','cancelled'].includes(j.status)){$('#pull').disabled=false;return}setTimeout(()=>watchPull(id),1500)}catch(e){$('#pullstatus').textContent=e.message;$('#pull').disabled=false}}
+loadModels();restorePersistedSettings();telemetry();setInterval(()=>{if($('#monitorview').classList.contains('active')||$('#chatview').classList.contains('active'))telemetry()},1000);
+
+// ==================== NEURAL WORKSTATION CANVAS VISUALIZER ====================
+let neuralNodes = [], neuralParticles = [], neuralAnimId = null;
+function initNeuralCanvas() {
+  const canvas = document.getElementById('neuralCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  function resize() {
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+    setupNodes();
+  }
+
+  function setupNodes() {
+    neuralNodes = [];
+    const w = canvas.width, h = canvas.height;
+    // Hub 1: Storage Shelf (SSD)
+    neuralNodes.push({ id: 'ssd', label: 'ARCHIVAL SSD', sub: '0% Compute', x: w * 0.12, y: h * 0.50, color: '#ffbd68', radius: 32, type: 'storage' });
+    // Hub 2: Workshop Manager
+    neuralNodes.push({ id: 'mgr', label: 'SHARED QUEUE MANAGER', sub: 'Unlimited Line · Dynamic Spillway', x: w * 0.45, y: h * 0.50, color: '#59d6cb', radius: 44, type: 'manager' });
+    // Hub 3: Tool Workstation (VRAM)
+    neuralNodes.push({ id: 'vram', label: 'TOOL WORKSTATION', sub: 'VRAM / CUDA', x: w * 0.82, y: h * 0.28, color: '#00ffcc', radius: 36, type: 'vram' });
+    // Hub 4: Hand-Labor Workstation (RAM)
+    neuralNodes.push({ id: 'ram', label: 'HAND-LABOR WORKSTATION', sub: 'RAM / CPU Multi-Core', x: w * 0.82, y: h * 0.72, color: '#789cff', radius: 36, type: 'ram' });
+    // Orbiting Satellite Experts
+    for (let i = 0; i < 22; i++) {
+      let angle = (i / 22) * Math.PI * 2;
+      let dist = 110 + Math.random() * 40;
+      neuralNodes.push({
+        id: 'sat_' + i,
+        label: 'Exp-' + (i * 127 % 4944),
+        sub: '',
+        x: neuralNodes[1].x + Math.cos(angle) * dist,
+        y: neuralNodes[1].y + Math.sin(angle) * dist,
+        baseAngle: angle,
+        baseDist: dist,
+        speed: 0.005 + (i % 3) * 0.003,
+        color: i % 2 === 0 ? '#59d6cb' : '#789cff',
+        radius: 7,
+        type: 'satellite'
+      });
+    }
+  }
+
+  function spawnParticle(fromNode, toNode, color, text) {
+    if (!fromNode || !toNode) return;
+    neuralParticles.push({
+      x: fromNode.x,
+      y: fromNode.y,
+      from: fromNode,
+      to: toNode,
+      progress: 0,
+      speed: 0.015 + Math.random() * 0.015,
+      color: color || '#59d6cb',
+      label: text || ''
+    });
+  }
+
+  // Periodic particle pulse
+  setInterval(() => {
+    if ($('#workstationview') && $('#workstationview').classList.contains('active')) {
+      let n = neuralNodes;
+      if (n.length >= 4) {
+        // Pulse 1: SSD -> Manager
+        spawnParticle(n[0], n[1], '#ffbd68', 'IN: Cold Weight');
+        // Pulse 2: Manager -> VRAM or RAM
+        if (Math.random() > 0.3) {
+          spawnParticle(n[1], n[2], '#00ffcc', '1-In ➔ VRAM Chair');
+        } else {
+          spawnParticle(n[1], n[3], '#789cff', 'Spillway ➔ RAM');
+        }
+      }
+    }
+  }, 480);
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Orbit satellites
+    for (let node of neuralNodes) {
+      if (node.type === 'satellite') {
+        node.baseAngle += node.speed;
+        node.x = neuralNodes[1].x + Math.cos(node.baseAngle) * node.baseDist;
+        node.y = neuralNodes[1].y + Math.sin(node.baseAngle) * node.baseDist;
+      }
+    }
+
+    // Draw Synaptic Neuron Connections
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < neuralNodes.length; i++) {
+      for (let j = i + 1; j < neuralNodes.length; j++) {
+        let n1 = neuralNodes[i], n2 = neuralNodes[j];
+        let dx = n2.x - n1.x, dy = n2.y - n1.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        let maxDist = (n1.type === 'satellite' || n2.type === 'satellite') ? 120 : canvas.width * 0.55;
+        if (dist < maxDist) {
+          let alpha = Math.max(0, 1 - dist / maxDist) * 0.28;
+          let grad = ctx.createLinearGradient(n1.x, n1.y, n2.x, n2.y);
+          grad.addColorStop(0, n1.color);
+          grad.addColorStop(1, n2.color);
+          ctx.strokeStyle = grad;
+          ctx.globalAlpha = alpha;
+          ctx.beginPath();
+          ctx.moveTo(n1.x, n1.y);
+          ctx.lineTo(n2.x, n2.y);
+          ctx.stroke();
+          ctx.globalAlpha = 1.0;
+        }
+      }
+    }
+
+    // Draw Flow Particles with Glowing Energy Effect
+    for (let i = neuralParticles.length - 1; i >= 0; i--) {
+      let p = neuralParticles[i];
+      p.progress += p.speed;
+      let currX = p.from.x + (p.to.x - p.from.x) * p.progress;
+      let currY = p.from.y + (p.to.y - p.from.y) * p.progress;
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(currX, currY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      if (p.label && p.progress > 0.3 && p.progress < 0.7) {
+        ctx.font = '10px Inter, monospace';
+        ctx.fillStyle = 'rgba(239,244,255,0.85)';
+        ctx.fillText(p.label, currX + 8, currY - 6);
+      }
+
+      if (p.progress >= 1.0) {
+        neuralParticles.splice(i, 1);
+      }
+    }
+
+    // Draw Main Neural Nodes
+    for (let node of neuralNodes) {
+      // Outer Glow
+      ctx.save();
+      ctx.shadowColor = node.color;
+      ctx.shadowBlur = node.type === 'satellite' ? 4 : 22;
+      ctx.fillStyle = node.color;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Inner Core
+      ctx.fillStyle = '#090d15';
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, Math.max(2, node.radius - 3), 0, Math.PI * 2);
+      ctx.fill();
+
+      // Node Inner Indicator
+      ctx.fillStyle = node.color;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, Math.max(1, node.radius * 0.4), 0, Math.PI * 2);
+      ctx.fill();
+
+      // Labeling
+      if (node.type !== 'satellite') {
+        ctx.font = 'bold 12px Inter, sans-serif';
+        ctx.fillStyle = '#eff4ff';
+        ctx.textAlign = 'center';
+        ctx.fillText(node.label, node.x, node.y + node.radius + 16);
+
+        ctx.font = '10px Inter, monospace';
+        ctx.fillStyle = 'var(--muted)';
+        ctx.fillText(node.sub, node.x, node.y + node.radius + 29);
+      }
+    }
+
+    neuralAnimId = requestAnimationFrame(draw);
+  }
+
+  window.resizeNeuralCanvas = resize;
+  window.addEventListener('resize', resize);
+  resize();
+  draw();
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  initNeuralCanvas();
+});
+
+</script></body></html>
