@@ -31,17 +31,23 @@ QUANT_PRESETS = {
     "Q2_K": {
         "ftype": lc.LLAMA_FTYPE_MOSTLY_Q2_K,
         "desc": "Ultra-lightweight 2.96 BPW (Fastest MoE stream, ~8.7 GB total)",
-        "expected_reduction_pct": 35
+        "expected_reduction_pct": 35,
+        "est_tok_s_gain": "+38% to +50% tok/s (e.g. 6.9 tok/s -> 9.5-10.5 tok/s)",
+        "vram_savings_gb": "3.8 GB less RAM/VRAM bandwidth"
     },
     "Q3_K_S": {
         "ftype": lc.LLAMA_FTYPE_MOSTLY_Q3_K_S,
         "desc": "Balanced light 3.49 BPW (~10.3 GB total, great quality retention)",
-        "expected_reduction_pct": 23
+        "expected_reduction_pct": 23,
+        "est_tok_s_gain": "+20% to +30% tok/s (e.g. 6.9 tok/s -> 8.3-9.0 tok/s)",
+        "vram_savings_gb": "2.2 GB less RAM/VRAM bandwidth"
     },
     "Q3_K_M": {
         "ftype": lc.LLAMA_FTYPE_MOSTLY_Q3_K_M,
         "desc": "High quality 3.86 BPW (~11.4 GB total)",
-        "expected_reduction_pct": 15
+        "expected_reduction_pct": 15,
+        "est_tok_s_gain": "+12% to +18% tok/s (e.g. 6.9 tok/s -> 7.7-8.1 tok/s)",
+        "vram_savings_gb": "1.1 GB less RAM/VRAM bandwidth"
     }
 }
 

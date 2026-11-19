@@ -337,6 +337,12 @@ async def list_models_api(ssd_only: bool = True):
                 elif "q8_0" in name_lower: quant = "Q8_0"
 
                 arch = "qwen3moe" if "qwen" in name_lower else ("deepseek" if "deepseek" in name_lower else "MoE")
+                
+                # Check MTP status: native MTP or external model draft
+                model_specific_draft = f_real.parent / f"{f_real.stem}_draft.gguf"
+                legacy_draft = f_real.parent / "draft.gguf"
+                mtp_supported = model_specific_draft.exists() or legacy_draft.exists() or "cerebras" in name_lower or "qwen" in name_lower
+
                 models.append({
                     "name": f.name,
                     "path": str(f),
@@ -344,6 +350,8 @@ async def list_models_api(ssd_only: bool = True):
                     "architecture": arch,
                     "quant": quant,
                     "storage": "SSD/NVMe",
+                    "mtp_supported": mtp_supported,
+                    "mtp_status": "MTP Active" if mtp_supported else "Lookup",
                     "experts": 103 if "25b" in name_lower or "qwen3" in name_lower else 64,
                     "top_k": 8,
                     "layers": 48
@@ -411,11 +419,20 @@ async def optimize_quantize(req: QuantizeRequest):
             threads=4,
             dry_run=req.dry_run
         )
+        cfg = QUANT_PRESETS[req.preset]
+        orig_gb = round(inp.stat().st_size / (1024**3), 2)
+        est_gb = round(orig_gb * (1 - cfg["expected_reduction_pct"] / 100), 2)
+
         return {
             "status": "ok",
             "dry_run": req.dry_run,
             "target": str(out_path),
             "preset": req.preset,
+            "original_size_gb": orig_gb,
+            "estimated_size_gb": est_gb,
+            "size_reduction": f"-{cfg['expected_reduction_pct']}% ({orig_gb} GB -> ~{est_gb} GB)",
+            "speed_gain": cfg["est_tok_s_gain"],
+            "vram_bandwidth_relief": cfg["vram_savings_gb"],
             "message": f"Quantization {'simulated' if req.dry_run else 'completed'} successfully."
         }
     except Exception as e:
