@@ -46,19 +46,74 @@ QUANT_PRESETS = {
 }
 
 def analyze_hardware():
-    """Detects CPU cores and GPU VRAM to determine peak performance profile."""
+    """Detects CPU cores and GPU VRAM to determine peak performance profile for low-spec & high-spec PCs."""
     logical_cores = os.cpu_count() or 4
-    # On AMD Ryzen (SMT), physical cores = logical / 2.
-    # MoE token decoding is memory-bandwidth bounded; hyperthreads cause L3 cache thrashing.
-    optimal_threads = max(2, logical_cores // 2)
+    # Physical cores = logical / 2 on SMT/hyperthreaded CPUs
+    physical_cores = max(2, logical_cores // 2)
+
+    # Detect Total Host RAM in GiB
+    ram_gib = 16.0
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    ram_gib = int(line.split()[1]) / (1024 * 1024)
+                    break
+    except Exception:
+        pass
+
+    # Detect GPU VRAM via nvidia-smi if available
+    vram_gib = 0.0
+    try:
+        import subprocess
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+            stderr=subprocess.DEVNULL
+        ).decode().strip()
+        if out:
+            vram_gib = float(out.split("\n")[0]) / 1024.0
+    except Exception:
+        pass
+
+    # Dynamic Low-Spec Tuning Policy:
+    # 1. GPU Layers:
+    #    - If VRAM < 2.5 GB (e.g. 2GB cards / APUs): 0 to 1 layer
+    #    - If VRAM 2.5 - 4.5 GB (e.g. GTX 1050 3GB, GTX 1650 4GB): 3 to 4 layers
+    #    - If VRAM > 4.5 GB (e.g. RTX 2060 6GB+): 6 to 12 layers
+    if vram_gib >= 5.5:
+        rec_gpu_layers = 8
+    elif vram_gib >= 2.8:
+        rec_gpu_layers = 4
+    elif vram_gib >= 1.8:
+        rec_gpu_layers = 2
+    else:
+        rec_gpu_layers = 0
+
+    # 2. RAM and mlock policy:
+    #    - If RAM < 16GB: disable mlock to allow OS paging headroom without crashing
+    #    - If RAM >= 16GB: enable mlock to lock active weights in RAM
+    rec_mlock = ram_gib >= 15.0
+
+    # 3. Context & Batch:
+    #    - Low-spec (RAM < 16GB or VRAM < 3GB): 128 batch, 1024 context
+    #    - Standard/High-spec: 256 batch, 2048 context
+    is_low_spec = ram_gib < 16.0 or vram_gib < 3.0
+    rec_batch = 128 if is_low_spec else 256
+    rec_ctx = 1024 if is_low_spec else 2048
+    rec_cache_mb = 256 if is_low_spec else 1024
 
     return {
         "logical_cpus": logical_cores,
-        "physical_cores": optimal_threads,
-        "recommended_threads": optimal_threads,
-        "recommended_batch": 256,
-        "recommended_gpu_layers": 4, # 4 layers fits Pascal GTX 1050 3GB / GTX 1650 4GB comfortably
-        "recommended_use_mlock": True
+        "physical_cores": physical_cores,
+        "ram_gib": round(ram_gib, 1),
+        "vram_gib": round(vram_gib, 1),
+        "is_low_spec": is_low_spec,
+        "recommended_threads": physical_cores,
+        "recommended_batch": rec_batch,
+        "recommended_ctx": rec_ctx,
+        "recommended_gpu_layers": rec_gpu_layers,
+        "recommended_use_mlock": rec_mlock,
+        "recommended_cache_mb": rec_cache_mb
     }
 
 def quantize_model(input_path: str, output_path: str, preset: str = "Q3_K_S", threads: int = 4, dry_run: bool = False):

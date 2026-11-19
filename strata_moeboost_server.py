@@ -438,52 +438,81 @@ async def chat_completions(req: ChatCompletionRequest):
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-def load_model(path: str, n_gpu_layers: int = 4, n_threads: int = 4, n_ctx: int = 2048, n_batch: int = 256):
-    print(f"[Strata-MoEBoost] Loading model with HotRod Turbo Tuner from {path}...")
+def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None = None, n_ctx: int | None = None, n_batch: int | None = None, low_spec: bool = False):
+    from strata_optimizer import analyze_hardware
+    hw = analyze_hardware()
+    
+    # Auto-calibrate if parameters are not explicitly forced
+    if low_spec:
+        # User explicitly requested ultra low-spec mode (fits 8GB-16GB RAM, 2GB VRAM cards / iGPUs)
+        final_gpu_layers = 2 if n_gpu_layers is None or n_gpu_layers > 2 else n_gpu_layers
+        final_threads = hw["physical_cores"]
+        final_batch = 128
+        final_ctx = 1024
+        final_mlock = False
+        cache_bytes = 256 * 1024 * 1024
+        print(f"[Strata-MoEBoost] Low-Spec PC Mode ENGAGED: layers={final_gpu_layers}, batch={final_batch}, ctx={final_ctx}, mlock={final_mlock}")
+    else:
+        final_gpu_layers = hw["recommended_gpu_layers"] if n_gpu_layers is None else n_gpu_layers
+        final_threads = hw["recommended_threads"] if n_threads is None else n_threads
+        final_batch = hw["recommended_batch"] if n_batch is None else n_batch
+        final_ctx = hw["recommended_ctx"] if n_ctx is None else n_ctx
+        final_mlock = hw["recommended_use_mlock"]
+        cache_bytes = hw["recommended_cache_mb"] * 1024 * 1024
+
+    print(f"[Strata-MoEBoost] Loading model from {path} (RAM: {hw['ram_gib']}GB, VRAM: {hw['vram_gib']}GB)...")
     t0 = time.time()
     state.llm = Llama(
         model_path=path,
-        n_ctx=n_ctx,
-        n_gpu_layers=n_gpu_layers,
-        n_threads=n_threads,
-        n_threads_batch=n_threads,
-        n_batch=n_batch,
-        n_ubatch=n_batch,
+        n_ctx=final_ctx,
+        n_gpu_layers=final_gpu_layers,
+        n_threads=final_threads,
+        n_threads_batch=final_threads,
+        n_batch=final_batch,
+        n_ubatch=final_batch,
         offload_kqv=True,
         use_mmap=True,
-        use_mlock=True,
+        use_mlock=final_mlock,
         verbose=False
     )
-    # Enable HotRod Conversation / Prefix Cache in RAM (bypasses redundant prompt parsing)
+    # Enable HotRod Conversation / Prefix Cache in RAM
     try:
         from llama_cpp import LlamaRAMCache
-        cache = LlamaRAMCache(capacity_bytes=1024 * 1024 * 1024) # 1 GB HotRod conversation RAM cache
+        cache = LlamaRAMCache(capacity_bytes=cache_bytes)
         state.llm.set_cache(cache)
-        print("[Strata-MoEBoost] HotRod 1GB RAM Prompt Cache enabled.")
+        print(f"[Strata-MoEBoost] HotRod RAM Prompt Cache enabled ({cache_bytes // (1024*1024)} MB).")
     except Exception as e:
         print(f"[Strata-MoEBoost] Note: LlamaRAMCache init: {e}")
 
     t_load = time.time() - t0
     state.model_path = path
     state.model_name = Path(path).stem
-    state.n_gpu_layers = n_gpu_layers
-    state.n_threads = n_threads
-    state.n_ctx = n_ctx
+    state.n_gpu_layers = final_gpu_layers
+    state.n_threads = final_threads
+    state.n_ctx = final_ctx
     state.telemetry = Telemetry()
-    print(f"[Strata-MoEBoost] HotRod Optimized model loaded in {t_load:.2f}s! Threads: {n_threads}, Batch: {n_batch}, GPU Layers: {n_gpu_layers}")
+    print(f"[Strata-MoEBoost] Model ready in {t_load:.2f}s! Threads: {final_threads}, Batch: {final_batch}, GPU Layers: {final_gpu_layers}, Context: {final_ctx}")
 
 def main():
     parser = argparse.ArgumentParser(description="Strata-MoEBoost Inference Server by Gravitize.IGP")
     parser.add_argument("--model", type=str, default="/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf")
-    parser.add_argument("--gpu-layers", type=int, default=4)
-    parser.add_argument("--threads", type=int, default=4)
-    parser.add_argument("--batch", type=int, default=256)
-    parser.add_argument("--ctx", type=int, default=2048)
+    parser.add_argument("--gpu-layers", type=int, default=None)
+    parser.add_argument("--threads", type=int, default=None)
+    parser.add_argument("--batch", type=int, default=None)
+    parser.add_argument("--ctx", type=int, default=None)
+    parser.add_argument("--low-spec", action="store_true", help="Ultra low-spec mode for 2GB VRAM cards / APUs / 8-16GB RAM")
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
     args = parser.parse_args()
 
-    load_model(args.model, n_gpu_layers=args.gpu_layers, n_threads=args.threads, n_ctx=args.ctx, n_batch=args.batch)
+    load_model(
+        args.model,
+        n_gpu_layers=args.gpu_layers,
+        n_threads=args.threads,
+        n_ctx=args.ctx,
+        n_batch=args.batch,
+        low_spec=args.low_spec
+    )
     print(f"[Strata-MoEBoost] Base Strata HotRod GUI ready at: http://{args.host}:{args.port}")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
