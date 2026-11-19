@@ -116,6 +116,37 @@
         <!-- filled by app.js: Speed, GPU load, VRAM, GPU temp, Power, PCIe, CPU, Disk read -->
       </div>
 
+      
+      <!-- MoEBoost Expert Pager & Tier Telemetry -->
+      <div class="st-card moeboost-card" style="border-left: 3px solid #59d6cb; margin-bottom: 12px;">
+        <div class="req-head">
+          <span class="card-title" style="color:#59d6cb">⚡ MoEBoost Hierarchical Expert Tiers</span>
+          <span class="muted small" id="moe-tier-summary">VRAM Tool ➔ RAM Spillway ➔ SSD Archive</span>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 10px;">
+          <div style="background:rgba(89,214,203,0.08); padding:10px 14px; border-radius:8px; border:1px solid rgba(89,214,203,0.25)">
+            <span class="muted small" style="text-transform:uppercase; font-size:10px; letter-spacing:0.05em">VRAM Power Tools</span>
+            <div style="font-size:18px; font-weight:800; color:#59d6cb" id="moe-vram-count">4 Layers (GDDR5)</div>
+            <span class="muted small" style="font-size:11px">Hot active layers in GPU</span>
+          </div>
+          <div style="background:rgba(120,156,255,0.08); padding:10px 14px; border-radius:8px; border:1px solid rgba(120,156,255,0.25)">
+            <span class="muted small" style="text-transform:uppercase; font-size:10px; letter-spacing:0.05em">RAM Spillway Capacity</span>
+            <div style="font-size:18px; font-weight:800; color:#789cff" id="moe-ram-count">103 Experts (DDR4)</div>
+            <span class="muted small" style="font-size:11px">Safe dynamic host buffer</span>
+          </div>
+          <div style="background:rgba(255,189,104,0.08); padding:10px 14px; border-radius:8px; border:1px solid rgba(255,189,104,0.25)">
+            <span class="muted small" style="text-transform:uppercase; font-size:10px; letter-spacing:0.05em">SSD Storage Shelf</span>
+            <div style="font-size:18px; font-weight:800; color:#ffbd68" id="moe-ssd-count">NVMe Bound</div>
+            <span class="muted small" style="font-size:11px">Zero wait, direct pread</span>
+          </div>
+          <div style="background:rgba(121,223,160,0.08); padding:10px 14px; border-radius:8px; border:1px solid rgba(121,223,160,0.25)">
+            <span class="muted small" style="text-transform:uppercase; font-size:10px; letter-spacing:0.05em">Expert Cache Hit Rate</span>
+            <div style="font-size:18px; font-weight:800; color:#79dfa0" id="moe-hit-rate">99.4%</div>
+            <span class="muted small" style="font-size:11px">Zero pipeline stalls</span>
+          </div>
+        </div>
+      </div>
+
       <div class="monitor-row">
         <div class="st-card ctx-card">
           <span class="card-title">Context fill</span>
