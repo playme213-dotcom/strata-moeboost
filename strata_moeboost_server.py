@@ -136,7 +136,9 @@ class TurboHotRodRAMCache(LlamaRAMCache):
         }
 
 class AppState:
-    llm: Llama | None = None
+    llm: Any = None
+    engine_mode: str = "llama"  # "llama" or "strata_unpacked"
+    native_runtime: Any = None
     ram_cache: TurboHotRodRAMCache | None = None
     telemetry: Telemetry | None = None
     model_path: str = ""
@@ -602,6 +604,7 @@ class ModelLoadRequest(BaseModel):
     batch: int | None = None
     low_spec: bool = False
     mtp: str = "auto"
+    engine_mode: str = "auto"  # "auto", "strata_unpacked", or "llama"
 
 @app.post("/api/models/load")
 async def load_model_api(req: ModelLoadRequest):
@@ -629,11 +632,13 @@ async def load_model_api(req: ModelLoadRequest):
             req.context or state.n_ctx,
             req.batch,
             req.low_spec,
-            req.mtp
+            req.mtp,
+            req.engine_mode
         )
         return {
             "status": "ok",
             "model": state.model_name,
+            "engine_mode": state.engine_mode,
             "path": state.model_path,
             "context": state.n_ctx,
             "gpu_layers": state.n_gpu_layers,
@@ -1145,6 +1150,12 @@ async def chat_completions(req: ChatCompletionRequest):
 def unload_model():
     """Cleanly unloads the current model and prompt cache, releasing RAM and VRAM."""
     print("[Strata-MoEBoost] Unloading model and reclaiming memory...")
+    if state.native_runtime is not None:
+        try:
+            state.native_runtime.stop()
+        except Exception:
+            pass
+        state.native_runtime = None
     if state.llm is not None:
         try:
             del state.llm
@@ -1160,10 +1171,35 @@ def unload_model():
     gc.collect()
     print("[Strata-MoEBoost] Memory reclamation complete.")
 
-def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None = None, n_ctx: int | None = None, n_batch: int | None = None, low_spec: bool = False, mtp: str = "auto"):
+def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None = None, n_ctx: int | None = None, n_batch: int | None = None, low_spec: bool = False, mtp: str = "auto", engine_mode: str = "auto"):
     # Cleanly unload any previously loaded model first to prevent VRAM/RAM exhaustion
     unload_model()
 
+    # Check for Native Strata-HotRod Unpacked Engine execution
+    model_p = Path(path)
+    use_native_unpack = (engine_mode == "strata_unpacked") or (engine_mode == "auto" and "flash-next" in model_p.name.lower())
+
+    if use_native_unpack:
+        try:
+            print(f"[Strata-MoEBoost] Unpacking {model_p.name} for Zero-Overhead Native C++ Strata Execution...")
+            pack_dir = ROOT / "pack" / model_p.stem
+            from strata_unpacker import unpack_gguf
+            unpack_gguf(str(model_p), str(pack_dir), compat_bf16=True, skip_experts=True)
+
+            from strata_hybrid_adapter import HybridStrataLLM
+            state.llm = HybridStrataLLM(pack_dir=str(pack_dir))
+            state.engine_mode = "strata_unpacked"
+            state.model_path = path
+            state.model_name = model_p.stem
+            state.n_ctx = n_ctx or 4096
+            state.n_gpu_layers = n_gpu_layers or 4
+            state.n_threads = n_threads or 8
+            print(f"[Strata-MoEBoost] Successfully engaged Native Strata-HotRod Unpacked Engine (Zero llama-cpp-python).")
+            return
+        except Exception as e:
+            print(f"[Strata-MoEBoost] Native Strata unpack execution notice: {e}. Falling back to standard mode...")
+
+    state.engine_mode = "llama"
     from strata_optimizer import analyze_hardware
     hw = analyze_hardware()
     
