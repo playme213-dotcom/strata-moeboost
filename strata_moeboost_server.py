@@ -97,7 +97,7 @@ async def health():
     return {
         "model": state.model_name or "Qwen3-Coder-REAP-25B-A3B",
         "context": state.n_ctx,
-        "port": 8080,
+        "port": 4133,
         "version": "0.1.45-moeboost",
         "ready": state.llm is not None,
         "vision": False,
@@ -694,7 +694,7 @@ def main():
     parser.add_argument("--low-spec", action="store_true", help="Ultra low-spec mode for 2GB VRAM cards / APUs / 8-16GB RAM")
     parser.add_argument("--mtp", type=str, default="auto", choices=["auto", "on", "off"], help="Multi-token prediction speculative lookahead mode")
     parser.add_argument("--host", type=str, default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--port", type=int, default=4133)
     args = parser.parse_args()
 
     load_model(

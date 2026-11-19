@@ -122,7 +122,7 @@ fi
 # Step 5: Launch Strata-MoEBoost server in background
 echo ""
 echo "[Step 4/5] Starting Strata-MoEBoost Server (with MTP / Speculative Drafting)..."
-PORT="${PORT:-8080}"
+PORT="${PORT:-4133}"
 SERVER_LOG="$ROOT_DIR/server.log"
 
 # Kill any existing server on this port

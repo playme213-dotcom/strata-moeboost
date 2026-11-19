@@ -32,7 +32,7 @@ if not defined MODEL (
 )
 
 set "PORT=%~2"
-if not defined PORT set "PORT=8080"
+if not defined PORT set "PORT=4133"
 
 echo ==========================================================
 echo  ⚡ Starting Strata-MoEBoost Server

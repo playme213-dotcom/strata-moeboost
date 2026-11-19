@@ -12,7 +12,7 @@ else
 fi
 
 MODEL="${1:-/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf}"
-PORT="${2:-8080}"
+PORT="${2:-4133}"
 GPU_LAYERS="$3"
 THREADS="$4"
 BATCH="$5"
