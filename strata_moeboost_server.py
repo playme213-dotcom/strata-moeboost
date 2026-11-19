@@ -679,6 +679,42 @@ DOWNLOAD_CATALOG = [
         "size_gb": 8.14
     },
     {
+        "id": "strata-flash-next-orig-shard1",
+        "family": "Original Strata Flash-Next",
+        "name": "Qwen3.8-Flash-Next IQ3_S Shard 1 (Original Strata)",
+        "desc": "125B MoE | 54.8 GB | Official ISTA-DASLab GSQ-RCO GGUF Part 1",
+        "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf",
+        "filename": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf",
+        "size_gb": 51.05
+    },
+    {
+        "id": "strata-flash-next-orig-shard2",
+        "family": "Original Strata Flash-Next",
+        "name": "Qwen3.8-Flash-Next IQ3_S Shard 2 (Original Strata)",
+        "desc": "125B MoE | 28.8 GB | Official ISTA-DASLab GSQ-RCO GGUF Part 2 (N-gram table)",
+        "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf",
+        "filename": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf",
+        "size_gb": 26.82
+    },
+    {
+        "id": "strata-avalon-flash-next-mtp",
+        "family": "Original Strata-Avalon Flash-Next",
+        "name": "Qwen3.8-Flash-Next Avalon MTP Draft Head",
+        "desc": "1.48 GB | Avalon speculative decoding draft head (2 draft tokens)",
+        "url": "https://huggingface.co/freriadoc/Qwen3.8-Flash-Next-Avalon-GGUF/resolve/main/MTP/mtp-Qwen3.8-Flash-Next-shared-IQ3K-IQ4NL-FR65k.gguf",
+        "filename": "mtp-Qwen3.8-Flash-Next-shared-IQ3K-IQ4NL-FR65k.gguf",
+        "size_gb": 1.48
+    },
+    {
+        "id": "strata-avalon-flash-next-shard1",
+        "family": "Original Strata-Avalon Flash-Next",
+        "name": "Qwen3.8-Flash-Next Avalon IQ3_KS Shard 01 (of 33)",
+        "desc": "661 MB | Avalon packed expert layout Shard 1",
+        "url": "https://huggingface.co/freriadoc/Qwen3.8-Flash-Next-Avalon-GGUF/resolve/main/Qwen3.8-Flash-Next-Avalon-IQ3KS-00001-of-00033.gguf",
+        "filename": "Qwen3.8-Flash-Next-Avalon-IQ3KS-00001-of-00033.gguf",
+        "size_gb": 0.65
+    },
+    {
         "id": "qwen3-coder-next-iq2xxs",
         "family": "MoE Coding & Reasoning",
         "name": "Qwen3-Coder-Next IQ2_XXS (80B MoE)",
@@ -706,15 +742,6 @@ DOWNLOAD_CATALOG = [
         "size_gb": 5.49
     },
     {
-        "id": "qwen15-moe-a27b-q3km",
-        "family": "MoE Lightweight",
-        "name": "Qwen1.5-MoE-A2.7B-Chat Q3_K_M",
-        "desc": "14.3B Total / 2.7B Active MoE | 6.9 GB | High quality compact conversational MoE",
-        "url": "https://huggingface.co/tensorblock/Qwen1.5-MoE-A2.7B-Chat-GGUF/resolve/main/Qwen1.5-MoE-A2.7B-Chat-Q3_K_M.gguf",
-        "filename": "Qwen1.5-MoE-A2.7B-Chat-Q3_K_M.gguf",
-        "size_gb": 6.93
-    },
-    {
         "id": "deepseek-coder-v2-lite-q4km",
         "family": "MoE Coding & Reasoning",
         "name": "DeepSeek-Coder-V2-Lite-Instruct Q4_K_M",
@@ -722,15 +749,6 @@ DOWNLOAD_CATALOG = [
         "url": "https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/resolve/main/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf",
         "filename": "DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf",
         "size_gb": 9.6
-    },
-    {
-        "id": "deepseek-coder-v2-lite-iq3m",
-        "family": "MoE Coding & Reasoning",
-        "name": "DeepSeek-Coder-V2-Lite-Instruct IQ3_M",
-        "desc": "16B Total / 2.4B Active MoE | ~6.9 GB | Extremely fast small footprint MoE",
-        "url": "https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/resolve/main/DeepSeek-Coder-V2-Lite-Instruct-IQ3_M.gguf",
-        "filename": "DeepSeek-Coder-V2-Lite-Instruct-IQ3_M.gguf",
-        "size_gb": 6.9
     },
     {
         "id": "phi-35-moe-q2k",
