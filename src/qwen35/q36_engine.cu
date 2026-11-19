@@ -1656,7 +1656,7 @@ struct Engine {
                     std::memcpy(&ds_b, &b[o], 4);
                     std::fprintf(stderr, "VDEBUG block %zu: ds new %08x old %08x, qs bytes %s, cpu butterfly sum %.9g (half %04x)\n",
                                  blk, ds_a, ds_b, std::memcmp(&a[o + 4], &b[o + 4], 32) == 0 ? "equal" : "DIFFER", (double) t[0],
-                                 (unsigned) __half_as_ushort(__float2half(t[0])));
+                                 (unsigned) __half_raw(__float2half(t[0])).x);
                     break;
                 }
         }

@@ -2737,8 +2737,8 @@ static bool la_save_inst(LaLearn& s, const char* path, std::string& msg) {
         std::vector<uint16_t> ha(fa.size()), hb(fb.size());
         ok = cudaMemcpy(fa.data(), s.A[c] + (size_t) sd * r * s.H, fa.size() * sizeof(float), cudaMemcpyDeviceToHost) == cudaSuccess &&
              cudaMemcpy(fb.data(), s.B[c] + (size_t) sd * kLaE * r, fb.size() * sizeof(float), cudaMemcpyDeviceToHost) == cudaSuccess;
-        for (size_t i = 0; i < fa.size(); ++i) ha[i] = __half_as_ushort(__float2half(fa[i]));
-        for (size_t i = 0; i < fb.size(); ++i) hb[i] = __half_as_ushort(__float2half(fb[i]));
+        for (size_t i = 0; i < fa.size(); ++i) ha[i] = __half_raw(__float2half(fa[i])).x;
+        for (size_t i = 0; i < fb.size(); ++i) hb[i] = __half_raw(__float2half(fb[i])).x;
         ok = ok && std::fwrite(ha.data(), sizeof(uint16_t), ha.size(), f) == ha.size() &&
              std::fwrite(hb.data(), sizeof(uint16_t), hb.size(), f) == hb.size();
     }
@@ -2794,8 +2794,8 @@ static bool la_load_inst(LaLearn& s, const char* path, std::string& msg) {
         ok = std::fread(ra.data(), sizeof(uint16_t), ra.size(), f) == ra.size() && std::fread(rb.data(), sizeof(uint16_t), rb.size(), f) == rb.size();
         if (!ok) break;
         std::vector<float> al(ra.size()), bl(rb.size());
-        for (size_t i = 0; i < ra.size(); ++i) al[i] = __half2float(__ushort_as_half(ra[i]));
-        for (size_t i = 0; i < rb.size(); ++i) bl[i] = __half2float(__ushort_as_half(rb[i]));
+        for (size_t i = 0; i < ra.size(); ++i) al[i] = __half2float(__half_raw{ra[i]});
+        for (size_t i = 0; i < rb.size(); ++i) bl[i] = __half2float(__half(__half_raw{rb[i]}));
         for (int c = 1; c < kLaSlots; ++c) {
             const int r = la_rank(c), m = r < rL ? r : rL;
             for (int kk = 0; kk < m; ++kk) {
