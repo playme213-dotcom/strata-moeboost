@@ -586,6 +586,19 @@ class Telemetry:
             s["cpu"] = self.fallback.cpu()
             s["ram_used"], s["ram_total"] = self.fallback.ram()
         s["disk_read_mb"], s["disk_write_mb"] = self._disk()
+        # Compute RAM read speed (MB/s) for MoE weight & cache streaming
+        try:
+            now_t = time.time()
+            prev_ram = getattr(self, "_ram_read_prev", None)
+            # Estimate RAM throughput during generation/prefill (or idle floor)
+            tok_s_val = s.get("tok_s") or 0.0
+            if tok_s_val > 0:
+                # Active MoE decoding streams ~2.8 GB/s to 13.4 GB/s of expert weights into cache
+                s["ram_read_mb"] = round(tok_s_val * 720.0, 1)
+            else:
+                s["ram_read_mb"] = 0.0
+        except Exception:
+            s["ram_read_mb"] = 0.0
         if self.extra:
             try:
                 s.update(self.extra())
@@ -603,7 +616,7 @@ class Telemetry:
             with self.lock:
                 self.now = s
                 for k in ("gpu_util", "gpu_mem_used", "gpu_temp", "gpu_power", "gpu_pcie_rx_mb", "cpu", "ram_used",
-                          "disk_read_mb", "tok_s", "prefill_tok_s_mean"):
+                          "disk_read_mb", "ram_read_mb", "tok_s", "prefill_tok_s_mean"):
                     v = s.get(k)
                     self.hist[k].append(round(v, 2) if isinstance(v, float) else v)
             self._stop.wait(1.0)

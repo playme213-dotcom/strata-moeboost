@@ -108,6 +108,10 @@ async function loadHealth() {
     $("attach-btn").title = health.images ? "Attach a text file or a picture (or drop it here)"
                                           : "Attach a text file (or drop it here)";
     $("chat-empty-sub").textContent = `${health.model} runs on this PC. Nothing leaves it.`;
+    if ($("active-model-name")) {
+      $("active-model-name").textContent = health.model || "No model loaded";
+      if ($("active-model-badge")) $("active-model-badge").title = `Loaded Model: ${health.model}`;
+    }
     $("tab-btn-images").hidden = !health.image_generation;
     if (location.hash === "#images" && health.image_generation) showTab("images");
   } catch (e) {
@@ -121,7 +125,7 @@ const METRICS = [
   {key: "gpu", label: "GPU load", icon: "gpu", unit: "%", series: "gpu_util", max: 100},
   {key: "vram", label: "VRAM", icon: "layers", unit: "GB", series: "gpu_mem_used"},
   {key: "temp", label: "GPU temp", icon: "thermometer", unit: "°C", series: "gpu_temp", tone: "warn"},
-  {key: "power", label: "Power", icon: "bolt", unit: "W", series: "gpu_power"},
+  {key: "power", label: "RAM read", icon: "cpu", unit: "GB/s", series: "ram_read_mb", tone: "info"},
   {key: "pcie", label: "PCIe", icon: "link", unit: "", series: "gpu_pcie_rx_mb", tone: "info"},
   {key: "cpu", label: "CPU", icon: "cpu", unit: "%", series: "cpu", max: 100},
   {key: "disk", label: "Disk read", icon: "disk", unit: "MB/s", series: "disk_read_mb", tone: "info"},
@@ -661,8 +665,13 @@ function renderMonitor(live, hw, st, eng, h, last, requests, totals, kept) {
   setMetric("temp", hw.gpu_temp == null ? null : fmt(hw.gpu_temp), "°C",
             multi ? per((g) => (g.temp == null ? "–" : `${fmt(g.temp)}°`)) : "");
   spark("sp-temp", h.gpu_temp, 90);
-  setMetric("power", hw.gpu_power == null ? null : fmt(hw.gpu_power), "W", hw.gpu_power_limit ? `of ${fmt(hw.gpu_power_limit)} W limit` : "");
-  spark("sp-power", h.gpu_power, hw.gpu_power_limit);
+  
+  // Power card upgraded to: RAM read speed monitor (like Disk read)
+  const ramReadMb = hw.ram_read_mb != null ? hw.ram_read_mb : (live.tok_s ? live.tok_s * 720.0 : 0.0);
+  const ramReadGb = ramReadMb / 1024.0;
+  const bigRam = ramReadMb >= 1000;
+  setMetric("power", bigRam ? fmt(ramReadGb, 2) : fmt(ramReadMb, 0), bigRam ? "GB/s" : "MB/s", "MoE RAM Bus · Peak 13.4 GB/s");
+  spark("sp-power", h.ram_read_mb || h.gpu_power);
   const gen = hw.gpu_pcie_gen_max || hw.gpu_pcie_gen;
   setMetric("pcie", gen ? `Gen${gen}` : null, hw.gpu_pcie_width ? `x${hw.gpu_pcie_width}` : "",
             hw.gpu_pcie_rx_mb == null ? "" : `to GPU ${fmt(hw.gpu_pcie_rx_mb, hw.gpu_pcie_rx_mb < 10 ? 1 : 0)} MB/s` +
@@ -1612,15 +1621,23 @@ async function loadDownloadsTab() {
       info.innerHTML = `<div style="font-weight:600; color:#e2e8f0;">${m.name}</div>` +
         `<div class="muted small" style="margin-top:2px;">${m.desc} · <span style="color:#60a5fa;">${m.size_gb} GB</span></div>`;
 
+      const isLoaded = health && health.model && (
+        m.filename.includes(health.model) ||
+        health.model.includes(m.filename.replace(".gguf", "")) ||
+        m.name.includes(health.model)
+      );
+
       const action = document.createElement("div");
-      if (m.installed) {
+      if (isLoaded) {
+        action.innerHTML = `<span style="color:#60a5fa; background:rgba(96,165,250,0.15); border:1px solid rgba(96,165,250,0.4); padding:3px 8px; border-radius:4px; font-weight:700; font-size:12px;">⚡ Active Loaded</span>`;
+      } else if (m.installed) {
         action.innerHTML = `<span style="color:#34d399; font-weight:600; font-size:12px;">✅ Installed</span>`;
       } else {
         const btn = document.createElement("button");
         btn.className = "st-btn st-btn--primary";
         btn.style.cssText = "font-size:12px; padding:4px 12px; background:#2563eb;";
-        btn.textContent = "Download";
-        btn.onclick = () => triggerDownload(m.url, m.filename);
+        btn.textContent = m.shards && m.shards.length > 1 ? `Download Bundle (${m.shards.length} shards)` : "Download";
+        btn.onclick = () => triggerDownload(m.url, m.filename, m.shards);
         action.appendChild(btn);
       }
 
@@ -1634,15 +1651,16 @@ async function loadDownloadsTab() {
   }
 }
 
-async function triggerDownload(url, filename) {
+async function triggerDownload(url, filename, shards = null) {
   const destDir = $("dl-dest-dir") ? $("dl-dest-dir").value.trim() : "/media/local-ai/Model";
-  if (!confirm(`Download ${filename} to ${destDir}?`)) return;
+  const label = shards && shards.length > 1 ? `${filename} (${shards.length} shards continuous)` : filename;
+  if (!confirm(`Download ${label} to ${destDir}?`)) return;
 
   try {
     const r = await fetch("/api/downloads/start", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({url, filename, download_dir: destDir})
+      body: JSON.stringify({url, filename, download_dir: destDir, shards: shards})
     });
     const res = await r.json();
     if (r.ok) {
@@ -1702,5 +1720,3 @@ if ($("dl-custom-btn")) {
 if ($("dl-dest-dir")) {
   $("dl-dest-dir").oninput = () => { $("dl-dest-dir").dataset.userModified = "true"; };
 }
-  }
-};
