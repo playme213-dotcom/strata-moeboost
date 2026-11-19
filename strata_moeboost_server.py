@@ -23,23 +23,6 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "moeboost_engine"))
-
-from serve.telemetry import Telemetry
-
-# Import llama-cpp
-try:
-    from llama_cpp import Llama
-except ImportError:
-    venv_site = Path("/home/local-ai/strata-moeboost/.venv/lib/python3.12/site-packages")
-    if venv_site.exists():
-        sys.path.insert(0, str(venv_site))
-        from llama_cpp import Llama
-    else:
-        raise
-
 app = FastAPI(
     title="Strata-MoEBoost by Gravitize.IGP",
     description="High-performance low-VRAM MoE inference engine streaming experts between SSD, RAM, and GPU.",
@@ -54,7 +37,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from llama_cpp.llama_cache import BaseLlamaCache, LlamaRAMCache
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "moeboost_engine"))
+
+from serve.telemetry import Telemetry
+
+# Optional llama-cpp imports (only used in legacy fallback mode)
+try:
+    from llama_cpp import Llama
+    from llama_cpp.llama_cache import BaseLlamaCache, LlamaRAMCache
+except ImportError:
+    Llama = None
+    class BaseLlamaCache:
+        pass
+    class LlamaRAMCache:
+        def __init__(self, capacity_bytes: int = (2 << 30)):
+            from collections import OrderedDict
+            self.capacity_bytes = capacity_bytes
+            self.cache_state = OrderedDict()
+        def _find_longest_prefix_key(self, key):
+            for k in reversed(self.cache_state):
+                if key[:len(k)] == k:
+                    return k
+            return None
 
 class TurboHotRodRAMCache(LlamaRAMCache):
     """Upgraded High-Performance HotRod Conversation & Prefix RAM Cache.
