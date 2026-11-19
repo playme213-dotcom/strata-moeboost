@@ -35,6 +35,11 @@
       <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-info"/></svg>About</button>
   </nav>
   <span class="st-header__spacer"></span>
+  <!-- Active Loaded Model Badge -->
+  <span id="active-model-badge" style="display:inline-flex; align-items:center; gap:6px; padding:3px 10px; margin-right:8px; background:rgba(96,165,250,0.12); border:1px solid rgba(96,165,250,0.35); border-radius:14px; font-size:12px; font-weight:500; color:#93c5fd; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="Loaded Model">
+    <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#34d399; box-shadow:0 0 6px #34d399;"></span>
+    <span id="active-model-name">Loading...</span>
+  </span>
   <span class="st-pill" id="pill" data-state="idle" role="status" aria-live="polite">
     <span class="st-pill__dot"></span><span id="pill-text">Connecting&hellip;</span></span>
   <button class="st-btn st-btn--icon" id="theme-btn" title="Light / dark" aria-label="Switch between light and dark">
@@ -471,9 +476,11 @@
         data.models.forEach(m => {
           const opt = document.createElement('option');
           opt.value = m.path;
+          const isCurrentActive = m.name === data.active || (data.active && m.name.includes(data.active));
+          const activeBadge = isCurrentActive ? ' [ACTIVE LOADED]' : '';
           const mtpBadge = m.mtp_supported ? ' · ⚡ MTP' : '';
-          opt.textContent = '🚀 ' + m.name + ' (' + m.size_gb + ' GB · ' + (m.architecture || 'MoE') + ' · ' + (m.storage || 'SSD') + mtpBadge + ')';
-          if (m.name === data.active) opt.selected = true;
+          opt.textContent = (isCurrentActive ? '🟢 ' : '🚀 ') + m.name + activeBadge + ' (' + m.size_gb + ' GB · ' + (m.architecture || 'MoE') + mtpBadge + ')';
+          if (isCurrentActive) opt.selected = true;
           sel.appendChild(opt);
         });
       } else {

@@ -108,6 +108,10 @@ async function loadHealth() {
     $("attach-btn").title = health.images ? "Attach a text file or a picture (or drop it here)"
                                           : "Attach a text file (or drop it here)";
     $("chat-empty-sub").textContent = `${health.model} runs on this PC. Nothing leaves it.`;
+    if ($("active-model-name")) {
+      $("active-model-name").textContent = health.model || "No model loaded";
+      if ($("active-model-badge")) $("active-model-badge").title = `Loaded Model: ${health.model}`;
+    }
     $("tab-btn-images").hidden = !health.image_generation;
     if (location.hash === "#images" && health.image_generation) showTab("images");
   } catch (e) {
@@ -1612,8 +1616,16 @@ async function loadDownloadsTab() {
       info.innerHTML = `<div style="font-weight:600; color:#e2e8f0;">${m.name}</div>` +
         `<div class="muted small" style="margin-top:2px;">${m.desc} · <span style="color:#60a5fa;">${m.size_gb} GB</span></div>`;
 
+      const isLoaded = health && health.model && (
+        m.filename.includes(health.model) ||
+        health.model.includes(m.filename.replace(".gguf", "")) ||
+        m.name.includes(health.model)
+      );
+
       const action = document.createElement("div");
-      if (m.installed) {
+      if (isLoaded) {
+        action.innerHTML = `<span style="color:#60a5fa; background:rgba(96,165,250,0.15); border:1px solid rgba(96,165,250,0.4); padding:3px 8px; border-radius:4px; font-weight:700; font-size:12px;">⚡ Active Loaded</span>`;
+      } else if (m.installed) {
         action.innerHTML = `<span style="color:#34d399; font-weight:600; font-size:12px;">✅ Installed</span>`;
       } else {
         const btn = document.createElement("button");
