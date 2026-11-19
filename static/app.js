@@ -1619,8 +1619,8 @@ async function loadDownloadsTab() {
         const btn = document.createElement("button");
         btn.className = "st-btn st-btn--primary";
         btn.style.cssText = "font-size:12px; padding:4px 12px; background:#2563eb;";
-        btn.textContent = "Download";
-        btn.onclick = () => triggerDownload(m.url, m.filename);
+        btn.textContent = m.shards && m.shards.length > 1 ? `Download Bundle (${m.shards.length} shards)` : "Download";
+        btn.onclick = () => triggerDownload(m.url, m.filename, m.shards);
         action.appendChild(btn);
       }
 
@@ -1634,15 +1634,16 @@ async function loadDownloadsTab() {
   }
 }
 
-async function triggerDownload(url, filename) {
+async function triggerDownload(url, filename, shards = null) {
   const destDir = $("dl-dest-dir") ? $("dl-dest-dir").value.trim() : "/media/local-ai/Model";
-  if (!confirm(`Download ${filename} to ${destDir}?`)) return;
+  const label = shards && shards.length > 1 ? `${filename} (${shards.length} shards continuous)` : filename;
+  if (!confirm(`Download ${label} to ${destDir}?`)) return;
 
   try {
     const r = await fetch("/api/downloads/start", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({url, filename, download_dir: destDir})
+      body: JSON.stringify({url, filename, download_dir: destDir, shards: shards})
     });
     const res = await r.json();
     if (r.ok) {

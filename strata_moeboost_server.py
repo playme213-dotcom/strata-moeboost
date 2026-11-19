@@ -679,40 +679,44 @@ DOWNLOAD_CATALOG = [
         "size_gb": 8.14
     },
     {
-        "id": "strata-flash-next-orig-shard1",
+        "id": "strata-flash-next-orig-bundle",
         "family": "Original Strata Flash-Next",
-        "name": "Qwen3.8-Flash-Next IQ3_S Shard 1 (Original Strata)",
-        "desc": "125B MoE | 54.8 GB | Official ISTA-DASLab GSQ-RCO GGUF Part 1",
+        "name": "Qwen3.8-Flash-Next IQ3_S (Full 2-Shard Bundle)",
+        "desc": "125B MoE | ~77.8 GB | Continuous auto-download for Shard 1 & Shard 2",
         "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf",
         "filename": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf",
-        "size_gb": 51.05
+        "size_gb": 77.87,
+        "shards": [
+            {
+                "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf",
+                "filename": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
+            },
+            {
+                "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf",
+                "filename": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
+            }
+        ]
     },
     {
-        "id": "strata-flash-next-orig-shard2",
-        "family": "Original Strata Flash-Next",
-        "name": "Qwen3.8-Flash-Next IQ3_S Shard 2 (Original Strata)",
-        "desc": "125B MoE | 28.8 GB | Official ISTA-DASLab GSQ-RCO GGUF Part 2 (N-gram table)",
-        "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf",
-        "filename": "Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf",
-        "size_gb": 26.82
-    },
-    {
-        "id": "strata-avalon-flash-next-mtp",
+        "id": "strata-avalon-flash-next-bundle",
         "family": "Original Strata-Avalon Flash-Next",
-        "name": "Qwen3.8-Flash-Next Avalon MTP Draft Head",
-        "desc": "1.48 GB | Avalon speculative decoding draft head (2 draft tokens)",
+        "name": "Qwen3.8-Flash-Next Avalon IQ3_KS (All 33 Shards + MTP)",
+        "desc": "125B MoE | ~89 GB | Continuous auto-download across all 33 shards + MTP head",
         "url": "https://huggingface.co/freriadoc/Qwen3.8-Flash-Next-Avalon-GGUF/resolve/main/MTP/mtp-Qwen3.8-Flash-Next-shared-IQ3K-IQ4NL-FR65k.gguf",
-        "filename": "mtp-Qwen3.8-Flash-Next-shared-IQ3K-IQ4NL-FR65k.gguf",
-        "size_gb": 1.48
-    },
-    {
-        "id": "strata-avalon-flash-next-shard1",
-        "family": "Original Strata-Avalon Flash-Next",
-        "name": "Qwen3.8-Flash-Next Avalon IQ3_KS Shard 01 (of 33)",
-        "desc": "661 MB | Avalon packed expert layout Shard 1",
-        "url": "https://huggingface.co/freriadoc/Qwen3.8-Flash-Next-Avalon-GGUF/resolve/main/Qwen3.8-Flash-Next-Avalon-IQ3KS-00001-of-00033.gguf",
         "filename": "Qwen3.8-Flash-Next-Avalon-IQ3KS-00001-of-00033.gguf",
-        "size_gb": 0.65
+        "size_gb": 89.0,
+        "shards": [
+            {
+                "url": "https://huggingface.co/freriadoc/Qwen3.8-Flash-Next-Avalon-GGUF/resolve/main/MTP/mtp-Qwen3.8-Flash-Next-shared-IQ3K-IQ4NL-FR65k.gguf",
+                "filename": "mtp-Qwen3.8-Flash-Next-shared-IQ3K-IQ4NL-FR65k.gguf"
+            }
+        ] + [
+            {
+                "url": f"https://huggingface.co/freriadoc/Qwen3.8-Flash-Next-Avalon-GGUF/resolve/main/Qwen3.8-Flash-Next-Avalon-IQ3KS-{i:05d}-of-00033.gguf",
+                "filename": f"Qwen3.8-Flash-Next-Avalon-IQ3KS-{i:05d}-of-00033.gguf"
+            }
+            for i in range(1, 34)
+        ]
     },
     {
         "id": "qwen3-coder-next-iq2xxs",
@@ -805,69 +809,77 @@ class StartDownloadRequest(BaseModel):
     url: str
     filename: str
     download_dir: str | None = None
+    shards: list[dict] | None = None
 
-def run_download_thread(url: str, dest_path: str):
+def run_download_thread(url: str, dest_path: str, shard_list: list[dict] | None = None):
     global download_job
     try:
         download_job["status"] = "downloading"
         download_job["percent"] = 0.0
         download_job["speed"] = "Connecting..."
         download_job["error"] = None
-        
-        # Check if URL resolves cleanly before launching downloader
-        import urllib.request, shutil, subprocess
+
+        import urllib.request, shutil, subprocess, os, re
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         hf_token = os.environ.get("HF_TOKEN")
         if hf_token:
             headers["Authorization"] = f"Bearer {hf_token}"
-
-        # Probe HEAD to verify access and obtain actual content size
-        head_req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(head_req, timeout=15) as probe:
-            total_size = int(probe.headers.get("Content-Length", 0))
-
-        download_job["speed"] = f"0.0% of {total_size // (1024*1024)} MB" if total_size > 0 else "Downloading..."
-
-        # Prefer aria2c if available
         hf_hdr = [f"--header=Authorization: Bearer {hf_token}"] if hf_token else []
         ua_hdr = ["--header=User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)"]
 
-        if shutil.which("aria2c"):
-            out_dir = os.path.dirname(dest_path)
-            fname = os.path.basename(dest_path)
-            cmd = ["aria2c", "-c", "-x", "8", "-s", "8", "-k", "1M", "--file-allocation=none", *ua_hdr, *hf_hdr, f"--dir={out_dir}", f"--out={fname}", url]
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            for line in proc.stdout:
-                line_str = line.strip()
-                if "%" in line_str:
-                    download_job["speed"] = line_str
-                    # Parse percentage from line e.g. (15%)
-                    import re
-                    m = re.search(r'\((\d{1,3})%\)', line_str)
-                    if m:
-                        download_job["percent"] = float(m.group(1))
-            proc.wait()
-            if proc.returncode != 0:
-                raise RuntimeError(f"aria2c exited with code {proc.returncode}")
-        else:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=30) as resp, open(dest_path, "wb") as out_f:
-                downloaded = 0
-                block_size = 1024 * 1024
-                while True:
-                    chunk = resp.read(block_size)
-                    if not chunk:
-                        break
-                    out_f.write(chunk)
-                    downloaded += len(chunk)
-                    if total_size > 0:
-                        pct = min(100.0, (downloaded / total_size) * 100)
-                        download_job["percent"] = round(pct, 1)
-                        download_job["speed"] = f"{pct:.1f}% ({downloaded // (1024*1024)}MB / {total_size // (1024*1024)}MB)"
-        
+        # If bundle with multiple shards, continuously download all of them
+        targets = shard_list if shard_list and len(shard_list) > 0 else [{"url": url, "filename": os.path.basename(dest_path)}]
+        dest_dir = os.path.dirname(dest_path)
+        total_shards = len(targets)
+
+        for idx, item in enumerate(targets):
+            s_url = item["url"]
+            s_fname = item["filename"]
+            s_path = os.path.join(dest_dir, s_fname)
+            download_job["filename"] = f"[{idx+1}/{total_shards}] {s_fname}"
+            download_job["speed"] = f"Shard {idx+1}/{total_shards}: Connecting..."
+
+            # Check if this shard already fully exists
+            if os.path.exists(s_path) and os.path.getsize(s_path) > 1024 * 1024:
+                download_job["speed"] = f"Shard {idx+1}/{total_shards}: Already downloaded, skipping..."
+                continue
+
+            if shutil.which("aria2c"):
+                cmd = ["aria2c", "-c", "-x", "8", "-s", "8", "-k", "1M", "--file-allocation=none", *ua_hdr, *hf_hdr, f"--dir={dest_dir}", f"--out={s_fname}", s_url]
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                for line in proc.stdout:
+                    line_str = line.strip()
+                    if "%" in line_str:
+                        download_job["speed"] = f"[{idx+1}/{total_shards}] {line_str}"
+                        m = re.search(r'\((\d{1,3})%\)', line_str)
+                        if m:
+                            shard_pct = float(m.group(1))
+                            overall_pct = ((idx + (shard_pct / 100.0)) / total_shards) * 100.0
+                            download_job["percent"] = round(overall_pct, 1)
+                proc.wait()
+                if proc.returncode != 0:
+                    raise RuntimeError(f"aria2c failed on {s_fname} with code {proc.returncode}")
+            else:
+                req = urllib.request.Request(s_url, headers=headers)
+                with urllib.request.urlopen(req, timeout=30) as resp, open(s_path, "wb") as out_f:
+                    total_size = int(resp.headers.get("Content-Length", 0))
+                    downloaded = 0
+                    block_size = 1024 * 1024
+                    while True:
+                        chunk = resp.read(block_size)
+                        if not chunk:
+                            break
+                        out_f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0:
+                            shard_pct = (downloaded / total_size) * 100.0
+                            overall_pct = ((idx + (shard_pct / 100.0)) / total_shards) * 100.0
+                            download_job["percent"] = round(overall_pct, 1)
+                            download_job["speed"] = f"[{idx+1}/{total_shards}] {shard_pct:.1f}% ({downloaded // (1024*1024)}MB / {total_size // (1024*1024)}MB)"
+
         download_job["status"] = "completed"
         download_job["percent"] = 100.0
-        download_job["speed"] = "Done"
+        download_job["speed"] = f"All {total_shards} shard(s) downloaded successfully!"
     except Exception as e:
         download_job["status"] = "error"
         download_job["error"] = str(e)
@@ -886,8 +898,10 @@ async def start_download(req: StartDownloadRequest):
     download_job["download_dir"] = dest_dir
 
     import threading
-    th = threading.Thread(target=run_download_thread, args=(req.url, str(dest_path)), daemon=True)
+    th = threading.Thread(target=run_download_thread, args=(req.url, str(dest_path), req.shards), daemon=True)
     th.start()
+
+    return {"status": "started", "target": str(dest_path)}
 
     return {"status": "started", "target": str(dest_path)}
 
