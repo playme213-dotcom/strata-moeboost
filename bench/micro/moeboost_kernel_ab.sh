@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# bench/micro/hotrod_kernel_ab.sh - bit-exactness of the hot-rod kernel switches, each setting in its own process.
+# bench/micro/moeboost_kernel_ab.sh - bit-exactness of the moeboost kernel switches, each setting in its own process.
 #
 # The switches are read once per process (static caches), so every (case, setting, seed) is a separate run of
-# hotrod_kernel_ab. The raw outputs of each non-baseline setting are compared byte for byte (cmp) with the baseline
+# moeboost_kernel_ab. The raw outputs of each non-baseline setting are compared byte for byte (cmp) with the baseline
 # setting's output for the same seed:
 #   gr      baseline STRATA_GR_DOWN_WPC=8 (default)     vs 4, 2
 #   router  baseline two launches (STRATA_ROUTER_FUSED unset) vs STRATA_ROUTER_FUSED=1
 #   topk    baseline default (STRATA_TOPK_SPLIT unset)  vs STRATA_TOPK_SPLIT=1
-# Outputs and logs go to $OUT (default /root/.claude/jobs/743230e4/tmp/kab). Usage: bench/micro/hotrod_kernel_ab.sh
+# Outputs and logs go to $OUT (default /root/.claude/jobs/743230e4/tmp/kab). Usage: bench/micro/moeboost_kernel_ab.sh
 set -u
 
 HERE="$(cd "$(dirname "$0")/../.." && pwd)"
-BIN="${BIN:-$HERE/build/hotrod_kernel_ab}"
+BIN="${BIN:-$HERE/build/moeboost_kernel_ab}"
 OUT="${OUT:-/root/.claude/jobs/743230e4/tmp/kab}"
 SEEDS="${SEEDS:-1 2 3}"
 mkdir -p "$OUT" || exit 2
 if [ ! -x "$BIN" ]; then
-    echo "missing $BIN (cmake --build <build> --target hotrod_kernel_ab)" >&2
+    echo "missing $BIN (cmake --build <build> --target moeboost_kernel_ab)" >&2
     exit 2
 fi
 

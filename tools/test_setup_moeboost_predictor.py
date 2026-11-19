@@ -1,7 +1,7 @@
 """Tests for the learned look-ahead's download (setup.fetch_hotrod_predictor): fetched for Qwen IQ3_S only, SHA-256 checked, a
 PC's own learned file kept, a failed or wrong download leaving setup running.  Every outside effect is local (file:// sources).
 
-    python -m unittest tools.test_setup_hotrod_predictor
+    python -m unittest tools.test_setup_moeboost_predictor
 """
 from __future__ import annotations
 
@@ -19,9 +19,9 @@ sys.path.insert(0, str(ROOT))
 import setup  # noqa: E402
 
 
-class FetchHotrodPredictor(unittest.TestCase):
+class FetchMoEBoostPredictor(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="strata-hotrod-pred-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="strata-moeboost-pred-"))
         self.src = self.tmp / "src.bin"
         self.src.write_bytes(b"learned look-ahead state" * 100)
         self.sha = hashlib.sha256(self.src.read_bytes()).hexdigest()

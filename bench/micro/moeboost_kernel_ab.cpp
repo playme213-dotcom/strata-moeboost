@@ -1,7 +1,7 @@
-// bench/micro/hotrod_kernel_ab.cpp - A/B bit-exactness of three hot-rod kernel switches on seeded random inputs.
+// bench/micro/moeboost_kernel_ab.cpp - A/B bit-exactness of three moeboost kernel switches on seeded random inputs.
 //
 // One process runs one case under the environment it was started with; the switches are read once per process
-// (static caches), so bench/micro/hotrod_kernel_ab.sh runs each setting in its own process and compares the raw
+// (static caches), so bench/micro/moeboost_kernel_ab.sh runs each setting in its own process and compares the raw
 // output files byte for byte.  No llama.cpp oracle: synthetic geometry from the engine's own call sites.
 //
 //   --case gr      fused_gr_read_multi (the hyper-connection read the decode uses): n_embd 2560, hc 4, hc_lr 320,
@@ -17,7 +17,7 @@
 //                  STRATA_TOPK_SPLIT=1 takes the split kernel, unset the default.  Output: the selected ids of each
 //                  query in their order.  Also checks the dispatched ids against qsa_block_topk_ref in-process.
 //
-// Usage: hotrod_kernel_ab --case gr|router|topk --seed N --out FILE
+// Usage: moeboost_kernel_ab --case gr|router|topk --seed N --out FILE
 #include "strata/kernels/bf16_gemv.hpp"
 #include "strata/kernels/fused_gr.hpp"
 #include "strata/kernels/native_router.hpp"
@@ -41,7 +41,7 @@ namespace k = strata::kernels;
 namespace {
 
 [[noreturn]] void die(const char* what, cudaError_t e) {
-    std::fprintf(stderr, "hotrod_kernel_ab: %s: %s\n", what, cudaGetErrorString(e));
+    std::fprintf(stderr, "moeboost_kernel_ab: %s: %s\n", what, cudaGetErrorString(e));
     std::exit(2);
 }
 void ck(cudaError_t e, const char* what) {
@@ -291,12 +291,12 @@ int main(int argc, char** argv) {
         else break;
     }
     if (which.empty() || out_path.empty() || !have_seed || argc != 7) {
-        std::fprintf(stderr, "usage: hotrod_kernel_ab --case gr|router|topk --seed N --out FILE\n");
+        std::fprintf(stderr, "usage: moeboost_kernel_ab --case gr|router|topk --seed N --out FILE\n");
         return 2;
     }
     FILE* out = std::fopen(out_path.c_str(), "wb");
     if (out == nullptr) {
-        std::fprintf(stderr, "hotrod_kernel_ab: cannot write %s\n", out_path.c_str());
+        std::fprintf(stderr, "moeboost_kernel_ab: cannot write %s\n", out_path.c_str());
         return 2;
     }
     int rc;
@@ -304,7 +304,7 @@ int main(int argc, char** argv) {
     else if (which == "router") rc = run_router(seed, out);
     else if (which == "topk") rc = run_topk(seed, out);
     else {
-        std::fprintf(stderr, "hotrod_kernel_ab: unknown case %s\n", which.c_str());
+        std::fprintf(stderr, "moeboost_kernel_ab: unknown case %s\n", which.c_str());
         rc = 2;
     }
     std::fclose(out);

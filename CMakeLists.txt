@@ -1347,14 +1347,14 @@ if(STRATA_ENABLE_CUDA OR STRATA_ENABLE_HIP)
     add_test(NAME native_mmvq_multi COMMAND native_mmvq_multi --selftest)
   endif()
 
-  # Hot-rod A/B: the hyper-connection read (STRATA_GR_DOWN_WPC), the router fusion (STRATA_ROUTER_FUSED) and the QSA
+  # MoEBoost A/B: the hyper-connection read (STRATA_GR_DOWN_WPC), the router fusion (STRATA_ROUTER_FUSED) and the QSA
   # split top-k (STRATA_TOPK_SPLIT) run in separate processes and their raw outputs compared byte for byte
-  # (bench/micro/hotrod_kernel_ab.sh). Synthetic inputs, no oracle.
+  # (bench/micro/moeboost_kernel_ab.sh). Synthetic inputs, no oracle.
   # (gated on CUDA and the file, not on STRATA_BUILD_TESTS: this build dir has the test suite off)
-  if(STRATA_ENABLE_CUDA AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bench/micro/hotrod_kernel_ab.cpp")
-    add_executable(hotrod_kernel_ab bench/micro/hotrod_kernel_ab.cpp)
-    target_include_directories(hotrod_kernel_ab PRIVATE ${_strata_gpu_include_directories})
-    target_link_libraries(hotrod_kernel_ab PRIVATE strata_kernels ${_strata_gpu_runtime_target})
+  if(STRATA_ENABLE_CUDA AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bench/micro/moeboost_kernel_ab.cpp")
+    add_executable(moeboost_kernel_ab bench/micro/moeboost_kernel_ab.cpp)
+    target_include_directories(moeboost_kernel_ab PRIVATE ${_strata_gpu_include_directories})
+    target_link_libraries(moeboost_kernel_ab PRIVATE strata_kernels ${_strata_gpu_runtime_target})
   endif()
 
   # Plan v0.3 P0.1: working-set lock of a host region (CPU only).
