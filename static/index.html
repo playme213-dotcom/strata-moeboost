@@ -29,6 +29,8 @@
       <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-image"/></svg>Images</button>
     <button class="st-tab" role="tab" id="tab-btn-monitor" aria-controls="view-monitor" aria-selected="false" data-tab="monitor">
       <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-activity"/></svg>Monitor</button>
+    <button class="st-tab" role="tab" id="tab-btn-download" aria-controls="view-download" aria-selected="false" data-tab="download">
+      <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-download"/></svg>Downloads</button>
     <button class="st-tab" role="tab" id="tab-btn-about" aria-controls="view-about" aria-selected="false" data-tab="about">
       <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-info"/></svg>About</button>
   </nav>
@@ -230,6 +232,59 @@
         <p class="muted small mcp-note">Their tools run on this PC with your rights, when the model decides to call them
           (in this page's chat only; switch it off in Sampling).</p>
       </div>
+    </div>
+  </section>
+
+  <!-- ============================ Downloads ============================ -->
+  <section class="view view--download" id="view-download" role="tabpanel" aria-labelledby="tab-btn-download" hidden>
+    <div class="about" style="max-width:880px; margin:0 auto;">
+      
+      <div class="st-card" style="border-left: 3px solid #60a5fa; margin-bottom:15px;">
+        <div class="req-head">
+          <span class="card-title" style="color:#60a5fa;">📥 MoE Model Downloader</span>
+          <span class="muted small">HotRod Flash-Next & SOTA MoE Catalog</span>
+        </div>
+        <p class="muted small" style="margin-top:6px;">Direct download high-performance Mixture of Experts models with multi-connection resume. Downloaded models are placed directly into your high-speed SSD model directory.</p>
+
+        <!-- Destination Directory Setting -->
+        <div style="margin: 12px 0; padding:10px 12px; background:rgba(255,255,255,0.02); border:1px solid #2b384e; border-radius:6px;">
+          <label class="st-label" for="dl-dest-dir" style="margin-bottom:4px; font-weight:600; color:#93c5fd;">📁 Download Destination Location (SSD/NVMe):</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="dl-dest-dir" class="st-input" style="flex:1; padding:6px 10px; font-family:monospace; font-size:13px;" value="/media/local-ai/Model">
+            <button class="st-btn st-btn--secondary" type="button" id="dl-refresh-dir-btn">Verify SSD</button>
+          </div>
+          <div id="dl-dir-hint" class="muted small" style="margin-top:4px;">Targeting fast NVMe disk for optimal MoE tier caching.</div>
+        </div>
+
+        <!-- Active Download Progress Card -->
+        <div id="dl-active-card" style="display:none; margin: 12px 0; padding:12px; background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.3); border-radius:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span style="font-weight:600; color:#60a5fa;" id="dl-active-title">Downloading model...</span>
+            <span class="muted small" id="dl-active-speed"></span>
+          </div>
+          <div style="width:100%; height:8px; background:#1e293b; border-radius:4px; overflow:hidden;">
+            <div id="dl-active-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #3b82f6, #60a5fa); transition:width 0.3s;"></div>
+          </div>
+        </div>
+
+        <!-- Custom URL Downloader -->
+        <details style="margin: 10px 0; background:rgba(255,255,255,0.02); border:1px solid #2b384e; border-radius:6px; padding:6px 10px;">
+          <summary style="font-weight:600; font-size:12px; color:#cbd5e1; cursor:pointer;">🌐 Download from Custom HuggingFace / Direct GGUF URL</summary>
+          <div style="margin-top:8px; display:flex; gap:8px;">
+            <input type="text" id="dl-custom-url" class="st-input" style="flex:1; padding:6px 10px; font-size:12px;" placeholder="https://huggingface.co/.../resolve/main/model.gguf">
+            <button class="st-btn st-btn--primary" type="button" id="dl-custom-btn">Download</button>
+          </div>
+        </details>
+      </div>
+
+      <!-- Catalog List -->
+      <div class="st-card">
+        <span class="card-title" style="margin-bottom:12px; display:block;">Available Models Catalog</span>
+        <div id="dl-catalog-list" style="display:flex; flex-direction:column; gap:10px;">
+          <div class="muted small">Loading catalog...</div>
+        </div>
+      </div>
+
     </div>
   </section>
 

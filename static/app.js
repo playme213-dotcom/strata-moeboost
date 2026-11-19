@@ -73,13 +73,17 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
 
 let tab = "chat";
 function showTab(name) {
-  tab = ["chat", "images", "monitor", "about"].includes(name) ? name : "chat";
+  tab = ["chat", "images", "monitor", "download", "about"].includes(name) ? name : "chat";
   for (const b of document.querySelectorAll(".st-tab")) b.setAttribute("aria-selected", String(b.dataset.tab === tab));
-  for (const v of ["chat", "images", "monitor", "about"]) $(`view-${v}`).hidden = v !== tab;
+  for (const v of ["chat", "images", "monitor", "download", "about"]) {
+    const el = $(`view-${v}`);
+    if (el) el.hidden = v !== tab;
+  }
   if (tab === "images") $("img-prompt").focus();
   if (location.hash.slice(1) !== tab) history.replaceState(null, "", tab === "chat" ? location.pathname : `#${tab}`);
   if (tab === "chat") $("input").focus();
   if (tab === "monitor") loadMcp();
+  if (tab === "download") loadDownloadsTab();
   if (tab === "about") loadConfig();
   if (lastMetrics) render(lastMetrics);
 }
@@ -1579,5 +1583,124 @@ $("img-form").onsubmit = async (ev) => {
     toast("error", "No image", String(e.message || e), 8000);
   } finally {
     $("img-go").disabled = false;
+  }
+};
+
+// ------------------------------------------------------------------ downloads tab
+let dlPollTimer = null;
+async function loadDownloadsTab() {
+  const listEl = $("dl-catalog-list");
+  if (!listEl) return;
+
+  try {
+    const r = await fetch("/api/downloads/catalog");
+    const data = await r.json();
+
+    if (data.default_dir && $("dl-dest-dir")) {
+      if (!$("dl-dest-dir").dataset.userModified) {
+        $("dl-dest-dir").value = data.default_dir;
+      }
+    }
+
+    listEl.innerHTML = "";
+    (data.catalog || []).forEach(m => {
+      const card = document.createElement("div");
+      card.style.cssText = "padding:10px 14px; background:rgba(255,255,255,0.02); border:1px solid #2b384e; border-radius:6px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;";
+
+      const info = document.createElement("div");
+      info.style.cssText = "flex:1; min-width:240px;";
+      info.innerHTML = `<div style="font-weight:600; color:#e2e8f0;">${m.name}</div>` +
+        `<div class="muted small" style="margin-top:2px;">${m.desc} · <span style="color:#60a5fa;">${m.size_gb} GB</span></div>`;
+
+      const action = document.createElement("div");
+      if (m.installed) {
+        action.innerHTML = `<span style="color:#34d399; font-weight:600; font-size:12px;">✅ Installed</span>`;
+      } else {
+        const btn = document.createElement("button");
+        btn.className = "st-btn st-btn--primary";
+        btn.style.cssText = "font-size:12px; padding:4px 12px; background:#2563eb;";
+        btn.textContent = "Download";
+        btn.onclick = () => triggerDownload(m.url, m.filename);
+        action.appendChild(btn);
+      }
+
+      card.append(info, action);
+      listEl.appendChild(card);
+    });
+
+    checkDownloadJob(data.job);
+  } catch(e) {
+    listEl.innerHTML = `<div style="color:#ff7887;">Error loading catalog: ${e.message}</div>`;
+  }
+}
+
+async function triggerDownload(url, filename) {
+  const destDir = $("dl-dest-dir") ? $("dl-dest-dir").value.trim() : "/media/local-ai/Model";
+  if (!confirm(`Download ${filename} to ${destDir}?`)) return;
+
+  try {
+    const r = await fetch("/api/downloads/start", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({url, filename, download_dir: destDir})
+    });
+    const res = await r.json();
+    if (r.ok) {
+      toast("success", "Download started", filename);
+      startDownloadPolling();
+    } else {
+      toast("error", "Download error", res.detail || "Failed to start download");
+    }
+  } catch(e) {
+    toast("error", "Network error", e.message);
+  }
+}
+
+function checkDownloadJob(job) {
+  const card = $("dl-active-card");
+  if (!card) return;
+  if (!job || job.status === "idle" || job.status === "completed") {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "block";
+  $("dl-active-title").textContent = `Downloading ${job.filename}...`;
+  $("dl-active-speed").textContent = job.speed || "";
+  $("dl-active-bar").style.width = `${job.percent || 0}%`;
+}
+
+function startDownloadPolling() {
+  if (dlPollTimer) clearInterval(dlPollTimer);
+  dlPollTimer = setInterval(async () => {
+    try {
+      const r = await fetch("/api/downloads/status");
+      const job = await r.json();
+      checkDownloadJob(job);
+      if (job.status === "completed") {
+        clearInterval(dlPollTimer);
+        toast("success", "Download complete", job.filename);
+        loadDownloadsTab();
+      } else if (job.status === "error") {
+        clearInterval(dlPollTimer);
+        toast("error", "Download failed", job.error || "Unknown error");
+      }
+    } catch(e) {
+      clearInterval(dlPollTimer);
+    }
+  }, 1000);
+}
+
+if ($("dl-custom-btn")) {
+  $("dl-custom-btn").onclick = () => {
+    const url = $("dl-custom-url").value.trim();
+    if (!url) return;
+    const fname = url.split("/").pop().split("?")[0] || "model.gguf";
+    triggerDownload(url, fname);
+  };
+}
+
+if ($("dl-dest-dir")) {
+  $("dl-dest-dir").oninput = () => { $("dl-dest-dir").dataset.userModified = "true"; };
+}
   }
 };

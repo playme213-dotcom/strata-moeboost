@@ -574,6 +574,177 @@ async def restart_server_api():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to restart engine: {str(e)}")
 
+DOWNLOAD_CATALOG = [
+    {
+        "id": "qwen38-flash-next-iq3s",
+        "family": "HotRod Flash-Next",
+        "name": "Qwen3.8-Flash-Next IQ3_S (HotRod Original Native)",
+        "desc": "125B MoE | ~11.5 GB | Learned look-ahead enabled (Taalas architecture)",
+        "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Qwen3.8-Flash-Next-IQ3_S.gguf",
+        "filename": "Qwen3.8-Flash-Next-IQ3_S.gguf",
+        "size_gb": 11.5
+    },
+    {
+        "id": "swift-flash-next-iq3s",
+        "family": "HotRod Flash-Next",
+        "name": "Swift-1.5-Qwen3.8-Flash-Next IQ3_S",
+        "desc": "125B MoE | ~11.5 GB | Swift fine-tune instruction following",
+        "url": "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-1.5-Qwen3.8-Flash-Next-IQ3_S.gguf",
+        "filename": "Swift-1.5-Qwen3.8-Flash-Next-IQ3_S.gguf",
+        "size_gb": 11.5
+    },
+    {
+        "id": "qwen38-flash-next-q20",
+        "family": "HotRod Flash-Next",
+        "name": "Qwen3.8-Flash-Next Q2_0 (Ultra-Low RAM)",
+        "desc": "125B MoE | ~8.9 GB | Fits easily on 16GB RAM machines",
+        "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Qwen3.8-Flash-Next-Q2_0.gguf",
+        "filename": "Qwen3.8-Flash-Next-Q2_0.gguf",
+        "size_gb": 8.9
+    },
+    {
+        "id": "cerebras-qwen3-coder-iq4xs",
+        "family": "MoE Coding & Reasoning",
+        "name": "Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS",
+        "desc": "25B Total / 3B Active MoE | 12.5 GB | Flagship coding & reasoning engine",
+        "url": "https://huggingface.co/cerebras/Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf",
+        "filename": "cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf",
+        "size_gb": 12.52
+    },
+    {
+        "id": "cerebras-qwen3-coder-q2k",
+        "family": "MoE Coding & Reasoning",
+        "name": "Cerebras Qwen3-Coder-REAP-25B-A3B Q2_K (Turbo Fast)",
+        "desc": "25B Total / 3B Active MoE | ~8.1 GB | Optimized for 2GB-4GB VRAM low-spec PCs",
+        "url": "https://huggingface.co/cerebras/Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf",
+        "filename": "cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf",
+        "size_gb": 8.14
+    },
+    {
+        "id": "deepseek-coder-v2-lite-q4km",
+        "family": "MoE Coding & Reasoning",
+        "name": "DeepSeek-Coder-V2-Lite-Instruct Q4_K_M",
+        "desc": "16B Total / 2.4B Active MoE | ~9.6 GB | Superior multi-language code generation",
+        "url": "https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/resolve/main/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf",
+        "filename": "DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf",
+        "size_gb": 9.6
+    },
+    {
+        "id": "deepseek-coder-v2-lite-iq3m",
+        "family": "MoE Coding & Reasoning",
+        "name": "DeepSeek-Coder-V2-Lite-Instruct IQ3_M",
+        "desc": "16B Total / 2.4B Active MoE | ~6.9 GB | Extremely fast small footprint MoE",
+        "url": "https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/resolve/main/DeepSeek-Coder-V2-Lite-Instruct-IQ3_M.gguf",
+        "filename": "DeepSeek-Coder-V2-Lite-Instruct-IQ3_M.gguf",
+        "size_gb": 6.9
+    },
+    {
+        "id": "mixtral-8x7b-instruct-q3km",
+        "family": "MoE Coding & Reasoning",
+        "name": "Mixtral-8x7B-Instruct-v0.1 Q3_K_M",
+        "desc": "46.7B Total / 12.9B Active MoE | ~22.5 GB | Standard high-capacity MoE",
+        "url": "https://huggingface.co/TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF/resolve/main/mixtral-8x7b-instruct-v0.1.Q3_K_M.gguf",
+        "filename": "mixtral-8x7b-instruct-v0.1.Q3_K_M.gguf",
+        "size_gb": 22.5
+    }
+]
+
+# Background download task state
+download_job = {
+    "status": "idle",
+    "filename": "",
+    "download_dir": "/media/local-ai/Model",
+    "percent": 0.0,
+    "speed": "",
+    "error": None
+}
+
+@app.get("/api/downloads/catalog")
+async def get_download_catalog():
+    # Detect default destination directory on SSD if available
+    default_dir = "/media/local-ai/Model" if Path("/media/local-ai/Model").exists() else "/home/local-ai/strata-moeboost/models"
+    # Annotate already downloaded status
+    items = []
+    for m in DOWNLOAD_CATALOG:
+        target_f = Path(default_dir) / m["filename"]
+        alt_f = Path("/media/local-ai/Model") / m["filename"]
+        installed = target_f.exists() or alt_f.exists()
+        items.append({
+            **m,
+            "installed": installed,
+            "installed_path": str(target_f if target_f.exists() else alt_f) if installed else None
+        })
+    return {
+        "catalog": items,
+        "default_dir": default_dir,
+        "job": download_job
+    }
+
+class StartDownloadRequest(BaseModel):
+    url: str
+    filename: str
+    download_dir: str | None = None
+
+def run_download_thread(url: str, dest_path: str):
+    global download_job
+    try:
+        download_job["status"] = "downloading"
+        download_job["percent"] = 0.0
+        download_job["speed"] = "Connecting..."
+        download_job["error"] = None
+        
+        # Prefer aria2c if available
+        import shutil, subprocess
+        if shutil.which("aria2c"):
+            out_dir = os.path.dirname(dest_path)
+            fname = os.path.basename(dest_path)
+            cmd = ["aria2c", "-c", "-x", "8", "-s", "8", "-k", "1M", "--file-allocation=none", f"--dir={out_dir}", f"--out={fname}", url]
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            for line in proc.stdout:
+                if "%" in line:
+                    download_job["speed"] = line.strip()
+            proc.wait()
+            if proc.returncode != 0:
+                raise RuntimeError(f"aria2c exited with code {proc.returncode}")
+        else:
+            import urllib.request
+            def progress(blocks, block_size, total_size):
+                if total_size > 0:
+                    pct = min(100.0, (blocks * block_size / total_size) * 100)
+                    download_job["percent"] = round(pct, 1)
+                    download_job["speed"] = f"{pct:.1f}% of {total_size // (1024*1024)} MB"
+            urllib.request.urlretrieve(url, dest_path, reporthook=progress)
+        
+        download_job["status"] = "completed"
+        download_job["percent"] = 100.0
+        download_job["speed"] = "Done"
+    except Exception as e:
+        download_job["status"] = "error"
+        download_job["error"] = str(e)
+
+@app.post("/api/downloads/start")
+async def start_download(req: StartDownloadRequest):
+    global download_job
+    if download_job["status"] == "downloading":
+        raise HTTPException(status_code=409, detail="A download is already in progress.")
+
+    dest_dir = req.download_dir or "/media/local-ai/Model"
+    Path(dest_dir).mkdir(parents=True, exist_ok=True)
+    dest_path = Path(dest_dir) / req.filename
+
+    download_job["filename"] = req.filename
+    download_job["download_dir"] = dest_dir
+
+    import threading
+    th = threading.Thread(target=run_download_thread, args=(req.url, str(dest_path)), daemon=True)
+    th.start()
+
+    return {"status": "started", "target": str(dest_path)}
+
+@app.get("/api/downloads/status")
+async def get_download_status():
+    return download_job
+
 @app.get("/config")
 async def get_config():
     return {
