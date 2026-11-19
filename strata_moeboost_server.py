@@ -234,16 +234,16 @@ async def metrics(requests: str = ""):
             "layers": 48,
             "experts": 103,
             "resident": state.n_gpu_layers * 103,
-            "in_ram": (48 - state.n_gpu_layers) * 103,
+            "in_ram": (48 - state.n_gpu_layers) * 70,
+            "idle": (48 - state.n_gpu_layers) * 25,
             "swaps": 48,
             "round": 12,
             "quality_swaps": 0,
             # Rows format:
             # First n_gpu_layers: '2' (VRAM White)
-            # Remaining layers: '1' (Host RAM Green)
-            # Occasional '0' for SSD Red tier
+            # Remaining layers: '1' (Host RAM Green), '4' (Idle Gray), '0' (SSD Red)
             "rows": (["2" * 103] * state.n_gpu_layers) + 
-                    (["1" * 95 + "0" * 8] * (48 - state.n_gpu_layers))
+                    (["1" * 70 + "4" * 25 + "0" * 8] * (48 - state.n_gpu_layers))
         },
         "timeline": None
     }

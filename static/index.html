@@ -185,10 +185,11 @@
       <div class="st-card res-card" id="res-card">
         <div class="req-head"><span class="card-title">MoE Expert Workshop Map</span><span class="muted small" id="res-sum"></span></div>
         <canvas class="res-canvas" id="res-canvas" role="img" aria-label="Map of the experts held in GPU memory: one block per layer, one cell per expert"></canvas>
-        <div class="res-legend" aria-hidden="true" style="margin-top:8px;">
+        <div class="res-legend" aria-hidden="true" style="margin-top:8px; display:flex; gap:12px; flex-wrap:wrap;">
           <span><i class="res-sw" style="background:#ffffff; border:1px solid #94a3b8;"></i><b>VRAM Working Set</b> (White)</span>
           <span><i class="res-sw" style="background:#34d399;"></i><b>Host RAM Spillway</b> (Green)</span>
           <span><i class="res-sw" style="background:#e05252;"></i><b>SSD Storage Archive</b> (Red)</span>
+          <span><i class="res-sw" style="background:#64748b;"></i><b>Idle Expert</b> (Gray)</span>
         </div>
         <p class="muted small res-note">Real-time MoEBoost 3-Tier Workshop telemetry. One block per layer, one cell per expert. Reflects streaming expert states between NVMe SSD, DDR4 Host RAM, and GTX VRAM.</p>
       </div>

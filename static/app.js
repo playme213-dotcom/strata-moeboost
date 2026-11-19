@@ -214,7 +214,7 @@ function since(t) {
   return s < 60 ? "just now" : s < 3600 ? `${fmt(s / 60)} min ago` : `${fmt(s / 3600, 1)} h ago`;
 }
 // the experts held in VRAM, from the engine's swap round:
-// '0' not in memory (SSD, RED #e05252), '1' host RAM (GREEN #34d399), '2' resident in VRAM (WHITE #ffffff), '3' hot in VRAM (WHITE #ffffff)
+// '0' SSD (RED #e05252), '1' host RAM (GREEN #34d399), '2' VRAM (WHITE #ffffff), '3' VRAM Hot (WHITE #ffffff), '4' Idle (GRAY #64748b)
 function renderResidency(r) {
   const card = $("res-card");
   card.hidden = !r;
@@ -222,36 +222,67 @@ function renderResidency(r) {
   const canvas = $("res-canvas"), n = r.experts, rows = r.rows, L = rows.length;
   const bw = n % 32 === 0 ? 32 : Math.ceil(Math.sqrt(n)), bh = Math.ceil(n / bw);
   const bcols = Math.min(L, 8), brows = Math.ceil(L / bcols);
-  const cw = bcols * bw + (bcols - 1), ch = brows * bh + (brows - 1);
+
+  // Each expert cell is drawn as cellSize x cellSize with cellGap grid line
+  const cellSize = 3;
+  const cellGap = 1;
+  const blockW = bw * (cellSize + cellGap);
+  const blockH = bh * (cellSize + cellGap);
+  const blockMargin = 4;
+
+  const cw = bcols * (blockW + blockMargin);
+  const ch = brows * (blockH + blockMargin);
   if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
   
   // Custom MoEBoost Color Spectrum:
-  // 0: SSD Archive (RED)
-  // 1: Host RAM Spillway (GREEN)
-  // 2: VRAM Active Working Set (WHITE)
-  // 3: VRAM Hot Experts (BRIGHT WHITE)
-  const c_ssd  = [224, 82, 82];    // Red #e05252 (SSD)
-  const c_ram  = [52, 211, 153];   // Green #34d399 (RAM)
-  const c_vram = [255, 255, 255];  // White #ffffff (VRAM)
-  const c_hot  = [255, 255, 255];  // Bright White (VRAM Hot)
+  // 0: SSD Archive (RED #e05252)
+  // 1: Host RAM Spillway (GREEN #34d399)
+  // 2: VRAM Active Working Set (WHITE #ffffff)
+  // 3: VRAM Hot Experts (BRIGHT WHITE #ffffff)
+  // 4: Idle Expert (GRAY #64748b)
+  const colors = [
+    "#e05252", // 0: SSD (Red)
+    "#34d399", // 1: RAM (Green)
+    "#ffffff", // 2: VRAM (White)
+    "#ffffff", // 3: Hot VRAM (White)
+    "#64748b"  // 4: Idle (Gray)
+  ];
+  const gridColor = "#1e293b"; // Dark slate grid boundary
 
-  const colors = [c_ssd, c_ram, c_vram, c_hot];
   const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(cw, ch);
-  const gap = [30, 41, 59]; // slate gap line
-  for (let i = 0; i < cw * ch; i++) {
-    img.data[i * 4] = gap[0]; img.data[i * 4 + 1] = gap[1]; img.data[i * 4 + 2] = gap[2]; img.data[i * 4 + 3] = 255;
-  }
+  ctx.fillStyle = "#0f172a"; // Deep canvas background
+  ctx.fillRect(0, 0, cw, ch);
+
   rows.forEach((row, l) => {
-    const x0 = (l % bcols) * (bw + 1), y0 = Math.floor(l / bcols) * (bh + 1);
+    const bx = (l % bcols) * (blockW + blockMargin);
+    const by = Math.floor(l / bcols) * (blockH + blockMargin);
+
+    // Draw layer block background
+    ctx.fillStyle = "#141e33";
+    ctx.fillRect(bx, by, blockW, blockH);
+
     for (let e = 0; e < n; e++) {
-      const c = colors[row.charCodeAt(e) - 48] || c_ssd, o = ((y0 + Math.floor(e / bw)) * cw + x0 + (e % bw)) * 4;
-      img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+      const code = row.charCodeAt(e) - 48;
+      const cellColor = (code >= 0 && code < colors.length) ? colors[code] : "#64748b";
+      
+      const colInBlock = e % bw;
+      const rowInBlock = Math.floor(e / bw);
+      const cx = bx + colInBlock * (cellSize + cellGap);
+      const cy = by + rowInBlock * (cellSize + cellGap);
+
+      // Draw cell
+      ctx.fillStyle = cellColor;
+      ctx.fillRect(cx, cy, cellSize, cellSize);
+
+      // Draw grid line border
+      ctx.strokeStyle = gridColor;
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(cx - 0.5, cy - 0.5, cellSize + 1, cellSize + 1);
     }
   });
-  ctx.putImageData(img, 0, 0);
+
   const total = r.layers * r.experts;
-  $("res-sum").textContent = `${fmt(r.resident)} in VRAM · ${fmt(r.in_ram || (total - r.resident))} in RAM · ${fmt(r.swaps || 0)} swaps`;
+  $("res-sum").textContent = `${fmt(r.resident)} VRAM · ${fmt(r.in_ram || 0)} RAM · ${fmt(r.idle || 0)} Idle · ${fmt(r.swaps || 0)} swaps`;
 }
 // the decode timeline: a scrolling view of the engine's host times, one buffer a second from /metrics (layers: [window, layer, tokens,
 // demand reads, CPU jobs, doorbell, plan published, quantise, reads start, reads done, jobs ready, CPU done] in us after the run's
