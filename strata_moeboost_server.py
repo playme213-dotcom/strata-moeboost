@@ -262,8 +262,33 @@ async def save_settings(request: Request):
     return {"status": "ok"}
 
 
+def is_path_on_ssd(file_path: str | Path) -> bool:
+    """Checks whether the underlying filesystem hosting file_path resides on an SSD / NVMe."""
+    try:
+        p = os.path.realpath(str(file_path))
+        if not os.path.exists(p):
+            p = os.path.dirname(p)
+        st = os.stat(p)
+        dev = st.st_dev
+        major = os.major(dev)
+        minor = os.minor(dev)
+        sys_dev = f"/sys/dev/block/{major}:{minor}"
+        if os.path.exists(sys_dev):
+            real_dev = os.path.realpath(sys_dev)
+            for part in reversed(real_dev.split("/")):
+                rota_file = f"/sys/block/{part}/queue/rotational"
+                if os.path.exists(rota_file):
+                    with open(rota_file) as f:
+                        return f.read().strip() == "0"
+                if "nvme" in part:
+                    return True
+        # If sysfs not present (or on fallback OS), check for nvme in path mount
+        return "nvme" in p.lower()
+    except Exception:
+        return False
+
 @app.get("/api/models")
-async def list_models_api():
+async def list_models_api(ssd_only: bool = True):
     models = []
     scan_dirs = [
         Path(state.models_dir),
@@ -273,47 +298,72 @@ async def list_models_api():
         Path("/home/local-ai/strata-moeboost/models"),
         Path("/home/local-ai")
     ]
-    seen = set()
+    seen_paths = set()
+    seen_names = set()
+
     for d in scan_dirs:
         if d.exists():
             for f in d.glob("*.gguf"):
-                if str(f) not in seen and f.is_file():
-                    seen.add(str(f))
-                    size_gb = round(f.stat().st_size / (1024**3), 2)
-                    name_lower = f.name.lower()
-                    # Detect quant and architecture heuristics
-                    quant = "IQ4_XS"
-                    if "q2_k" in name_lower: quant = "Q2_K"
-                    elif "q3_k_s" in name_lower: quant = "Q3_K_S"
-                    elif "q3_k_m" in name_lower: quant = "Q3_K_M"
-                    elif "q4_k_m" in name_lower: quant = "Q4_K_M"
-                    elif "q5_k_m" in name_lower: quant = "Q5_K_M"
-                    elif "q8_0" in name_lower: quant = "Q8_0"
+                f_real = Path(os.path.realpath(str(f)))
+                f_str = str(f_real)
 
-                    arch = "qwen3moe" if "qwen" in name_lower else ("deepseek" if "deepseek" in name_lower else "MoE")
-                    models.append({
-                        "name": f.name,
-                        "path": str(f),
-                        "size_gb": size_gb,
-                        "architecture": arch,
-                        "quant": quant,
-                        "experts": 103 if "25b" in name_lower or "qwen3" in name_lower else 64,
-                        "top_k": 8,
-                        "layers": 48
-                    })
-    # If no files found on disk, provide active model entry
+                # Filter 1: Anti-duplicate path check
+                if f_str in seen_paths or not f.is_file():
+                    continue
+
+                # Filter 2: Don't show draft models for MTP (draft.gguf or *-draft*.gguf)
+                name_lower = f.name.lower()
+                if name_lower == "draft.gguf" or "-draft" in name_lower or "_draft" in name_lower:
+                    continue
+
+                # Filter 3: Anti-duplicate model name check
+                if f.name in seen_names:
+                    continue
+
+                # Filter 4: Show only on SSD / NVMe
+                if ssd_only and not is_path_on_ssd(f):
+                    continue
+
+                seen_paths.add(f_str)
+                seen_names.add(f.name)
+
+                size_gb = round(f.stat().st_size / (1024**3), 2)
+                quant = "IQ4_XS"
+                if "q2_k" in name_lower: quant = "Q2_K"
+                elif "q3_k_s" in name_lower: quant = "Q3_K_S"
+                elif "q3_k_m" in name_lower: quant = "Q3_K_M"
+                elif "q4_k_m" in name_lower: quant = "Q4_K_M"
+                elif "q5_k_m" in name_lower: quant = "Q5_K_M"
+                elif "q8_0" in name_lower: quant = "Q8_0"
+
+                arch = "qwen3moe" if "qwen" in name_lower else ("deepseek" if "deepseek" in name_lower else "MoE")
+                models.append({
+                    "name": f.name,
+                    "path": str(f),
+                    "size_gb": size_gb,
+                    "architecture": arch,
+                    "quant": quant,
+                    "storage": "SSD/NVMe",
+                    "experts": 103 if "25b" in name_lower or "qwen3" in name_lower else 64,
+                    "top_k": 8,
+                    "layers": 48
+                })
+
+    # If no files found on disk, provide active model entry if valid
     if not models and state.model_path and Path(state.model_path).exists():
         p = Path(state.model_path)
-        models.append({
-            "name": p.name,
-            "path": str(p),
-            "size_gb": round(p.stat().st_size / (1024**3), 2),
-            "architecture": "qwen3moe",
-            "quant": "IQ4_XS",
-            "experts": 103,
-            "top_k": 8,
-            "layers": 48
-        })
+        if not ("draft.gguf" in p.name.lower() or "-draft" in p.name.lower()):
+            models.append({
+                "name": p.name,
+                "path": str(p),
+                "size_gb": round(p.stat().st_size / (1024**3), 2),
+                "architecture": "qwen3moe",
+                "quant": "IQ4_XS",
+                "storage": "SSD/NVMe" if is_path_on_ssd(p) else "HDD/SATA",
+                "experts": 103,
+                "top_k": 8,
+                "layers": 48
+            })
     return {"models": models, "active": state.model_name}
 
 @app.get("/api/models/check")
