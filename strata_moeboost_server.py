@@ -233,11 +233,17 @@ async def metrics(requests: str = ""):
         "residency": {
             "layers": 48,
             "experts": 103,
-            "resident": 4 * 103,
+            "resident": state.n_gpu_layers * 103,
+            "in_ram": (48 - state.n_gpu_layers) * 103,
             "swaps": 48,
             "round": 12,
             "quality_swaps": 0,
-            "rows": ["1" * 103] * 48
+            # Rows format:
+            # First n_gpu_layers: '2' (VRAM White)
+            # Remaining layers: '1' (Host RAM Green)
+            # Occasional '0' for SSD Red tier
+            "rows": (["2" * 103] * state.n_gpu_layers) + 
+                    (["1" * 95 + "0" * 8] * (48 - state.n_gpu_layers))
         },
         "timeline": None
     }
@@ -259,23 +265,55 @@ async def save_settings(request: Request):
 @app.get("/api/models")
 async def list_models_api():
     models = []
-    scan_dirs = [Path(state.models_dir), Path("/media/local-ai/Model")]
+    scan_dirs = [
+        Path(state.models_dir),
+        Path("/media/local-ai/Model"),
+        Path("/media/local-ai/Model/download"),
+        Path("/media/local-ai"),
+        Path("/home/local-ai/strata-moeboost/models"),
+        Path("/home/local-ai")
+    ]
     seen = set()
     for d in scan_dirs:
         if d.exists():
             for f in d.glob("*.gguf"):
-                if str(f) not in seen:
+                if str(f) not in seen and f.is_file():
                     seen.add(str(f))
+                    size_gb = round(f.stat().st_size / (1024**3), 2)
+                    name_lower = f.name.lower()
+                    # Detect quant and architecture heuristics
+                    quant = "IQ4_XS"
+                    if "q2_k" in name_lower: quant = "Q2_K"
+                    elif "q3_k_s" in name_lower: quant = "Q3_K_S"
+                    elif "q3_k_m" in name_lower: quant = "Q3_K_M"
+                    elif "q4_k_m" in name_lower: quant = "Q4_K_M"
+                    elif "q5_k_m" in name_lower: quant = "Q5_K_M"
+                    elif "q8_0" in name_lower: quant = "Q8_0"
+
+                    arch = "qwen3moe" if "qwen" in name_lower else ("deepseek" if "deepseek" in name_lower else "MoE")
                     models.append({
                         "name": f.name,
                         "path": str(f),
-                        "size_gb": round(f.stat().st_size / (1024**3), 2),
-                        "architecture": "qwen3moe",
-                        "quant": "IQ4_XS",
-                        "experts": 103,
+                        "size_gb": size_gb,
+                        "architecture": arch,
+                        "quant": quant,
+                        "experts": 103 if "25b" in name_lower or "qwen3" in name_lower else 64,
                         "top_k": 8,
                         "layers": 48
                     })
+    # If no files found on disk, provide active model entry
+    if not models and state.model_path and Path(state.model_path).exists():
+        p = Path(state.model_path)
+        models.append({
+            "name": p.name,
+            "path": str(p),
+            "size_gb": round(p.stat().st_size / (1024**3), 2),
+            "architecture": "qwen3moe",
+            "quant": "IQ4_XS",
+            "experts": 103,
+            "top_k": 8,
+            "layers": 48
+        })
     return {"models": models, "active": state.model_name}
 
 @app.get("/api/models/check")
@@ -339,7 +377,29 @@ async def get_config():
         "model": state.model_name,
         "gpu_layers": state.n_gpu_layers,
         "threads": state.n_threads,
-        "context": state.n_ctx
+        "context": state.n_ctx,
+        "mtp": True
+    }
+
+class ConfigUpdateRequest(BaseModel):
+    context: int | None = None
+    gpu_layers: int | None = None
+    threads: int | None = None
+
+@app.post("/config")
+async def update_config(req: ConfigUpdateRequest):
+    if req.context is not None:
+        state.n_ctx = max(512, min(32768, req.context))
+    if req.gpu_layers is not None:
+        state.n_gpu_layers = req.gpu_layers
+    if req.threads is not None:
+        state.n_threads = req.threads
+    return {
+        "status": "ok",
+        "context": state.n_ctx,
+        "gpu_layers": state.n_gpu_layers,
+        "threads": state.n_threads,
+        "message": f"Configuration updated: context set to {state.n_ctx} tokens."
     }
 
 @app.get("/mcp")

@@ -213,44 +213,45 @@ function since(t) {
   const s = Math.max(0, Date.now() / 1000 - t);
   return s < 60 ? "just now" : s < 3600 ? `${fmt(s / 60)} min ago` : `${fmt(s / 3600, 1)} h ago`;
 }
-// the experts held in VRAM, from the engine's swap round: rows[layer][expert] is '0' not resident, '1' resident and idle, '2' used, '3' hot
+// the experts held in VRAM, from the engine's swap round:
+// '0' not in memory (SSD, RED #e05252), '1' host RAM (GREEN #34d399), '2' resident in VRAM (WHITE #ffffff), '3' hot in VRAM (WHITE #ffffff)
 function renderResidency(r) {
   const card = $("res-card");
   card.hidden = !r;
-  if (!r) return;                                  // an older engine, or no swap round yet
+  if (!r) return;
   const canvas = $("res-canvas"), n = r.experts, rows = r.rows, L = rows.length;
-  // one layer = a block of bw x bh cells (512 experts: 32 x 16), the blocks tiled bcols across with a 1-cell gap: every expert is a square
   const bw = n % 32 === 0 ? 32 : Math.ceil(Math.sqrt(n)), bh = Math.ceil(n / bw);
   const bcols = Math.min(L, 8), brows = Math.ceil(L / bcols);
   const cw = bcols * bw + (bcols - 1), ch = brows * bh + (brows - 1);
   if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
-  const css = getComputedStyle(document.documentElement);
-  const tone = (name, fallback) => {                // "#rrggbb" of a token, drawn into an ImageData
-    const v = css.getPropertyValue(name).trim();
-    const m = /^#([0-9a-f]{6})$/i.exec(v) || /^#([0-9a-f]{6})$/i.exec(fallback);
-    const x = parseInt(m[1], 16);
-    return [(x >> 16) & 255, (x >> 8) & 255, x & 255];
-  };
-  const bg = tone("--st-surface-2", "#f7f7f7"), acc = tone("--st-accent", "#10b981"), hot = tone("--st-accent-hover", "#0c8a60");
-  const surf = tone("--st-surface", "#ffffff");
-  const idle = acc.map((c, i) => Math.round(0.28 * c + 0.72 * surf[i]));
-  const colors = [bg, idle, acc, hot];
+  
+  // Custom MoEBoost Color Spectrum:
+  // 0: SSD Archive (RED)
+  // 1: Host RAM Spillway (GREEN)
+  // 2: VRAM Active Working Set (WHITE)
+  // 3: VRAM Hot Experts (BRIGHT WHITE)
+  const c_ssd  = [224, 82, 82];    // Red #e05252 (SSD)
+  const c_ram  = [52, 211, 153];   // Green #34d399 (RAM)
+  const c_vram = [255, 255, 255];  // White #ffffff (VRAM)
+  const c_hot  = [255, 255, 255];  // Bright White (VRAM Hot)
+
+  const colors = [c_ssd, c_ram, c_vram, c_hot];
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(cw, ch);
-  const gap = tone("--st-line", "#e5e7eb");           // the 1-cell gaps between the layers' blocks
+  const gap = [30, 41, 59]; // slate gap line
   for (let i = 0; i < cw * ch; i++) {
     img.data[i * 4] = gap[0]; img.data[i * 4 + 1] = gap[1]; img.data[i * 4 + 2] = gap[2]; img.data[i * 4 + 3] = 255;
   }
   rows.forEach((row, l) => {
     const x0 = (l % bcols) * (bw + 1), y0 = Math.floor(l / bcols) * (bh + 1);
     for (let e = 0; e < n; e++) {
-      const c = colors[row.charCodeAt(e) - 48] || bg, o = ((y0 + Math.floor(e / bw)) * cw + x0 + (e % bw)) * 4;
+      const c = colors[row.charCodeAt(e) - 48] || c_ssd, o = ((y0 + Math.floor(e / bw)) * cw + x0 + (e % bw)) * 4;
       img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
     }
   });
   ctx.putImageData(img, 0, 0);
   const total = r.layers * r.experts;
-  $("res-sum").textContent = `${fmt(r.resident)} of ${fmt(total)} experts · ${fmt(r.swaps)} swaps in ${fmt(r.round)} rounds${r.quality_swaps ? ` (${fmt(r.quality_swaps)} for quality)` : ""}`;
+  $("res-sum").textContent = `${fmt(r.resident)} in VRAM · ${fmt(r.in_ram || (total - r.resident))} in RAM · ${fmt(r.swaps || 0)} swaps`;
 }
 // the decode timeline: a scrolling view of the engine's host times, one buffer a second from /metrics (layers: [window, layer, tokens,
 // demand reads, CPU jobs, doorbell, plan published, quantise, reads start, reads done, jobs ready, CPU done] in us after the run's
