@@ -244,6 +244,37 @@
           <span class="muted small">Architecture, Auto-Tune & GGUF Optimizer</span>
         </div>
         <p class="muted small" style="margin-top:6px">Select any local GGUF MoE model to inspect compatibility, run hardware auto-tuning, or optimize to compact quant presets (Q2_K, Q3_K_S) to accelerate inference.</p>
+        <!-- Advanced Execution & Optimizer Settings Drawer -->
+        <details style="margin: 10px 0; background:rgba(255,255,255,0.02); border:1px solid #2b384e; border-radius:6px; padding:6px 10px;">
+          <summary style="font-weight:600; font-size:12px; color:#93c5fd; cursor:pointer;">⚙️ Optimized Load Settings (Tuning & Fallback)</summary>
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-top:8px;">
+            <div>
+              <label class="muted small" style="display:block; margin-bottom:2px;">VRAM Layers:</label>
+              <input type="number" id="load-gpu-layers" class="st-input" style="width:100%; padding:4px 8px; font-size:12px;" placeholder="Auto (4)" min="0" max="64">
+            </div>
+            <div>
+              <label class="muted small" style="display:block; margin-bottom:2px;">CPU Threads:</label>
+              <input type="number" id="load-threads" class="st-input" style="width:100%; padding:4px 8px; font-size:12px;" placeholder="Auto (4 Cores)" min="1" max="32">
+            </div>
+            <div>
+              <label class="muted small" style="display:block; margin-bottom:2px;">Micro-Batch:</label>
+              <input type="number" id="load-batch" class="st-input" style="width:100%; padding:4px 8px; font-size:12px;" placeholder="Auto (256)" min="32" max="1024" step="32">
+            </div>
+            <div>
+              <label class="muted small" style="display:block; margin-bottom:2px;">MTP Mode:</label>
+              <select id="load-mtp" class="st-input" style="width:100%; padding:4px 8px; font-size:12px; background:#121824;">
+                <option value="auto">Auto (Draft & Lookup)</option>
+                <option value="on">Force MTP</option>
+                <option value="off">Off</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="load-low-spec" style="cursor:pointer;">
+            <label for="load-low-spec" class="muted small" style="cursor:pointer; margin:0;"><b>Low-Spec PC Mode</b> (2GB-4GB VRAM / 8GB-16GB RAM safe paging profile)</label>
+          </div>
+        </details>
+
         <div style="display:flex; gap:8px; margin: 10px 0; flex-wrap:wrap;">
           <select class="st-input" id="moe-model-select" style="flex:1; min-width:240px; background:var(--st-bg-input, #121824); color:inherit; border:1px solid #2b384e; padding:6px 10px; border-radius:6px;">
             <option value="">Scanning local models...</option>
@@ -474,18 +505,35 @@
         const path = sel.value;
         if (!path) return;
         if (!confirm('Load and switch to ' + path.split('/').pop() + '?')) return;
+
+        // Collect custom/optimized load settings
+        const gpuInp = document.getElementById('load-gpu-layers');
+        const thInp = document.getElementById('load-threads');
+        const bInp = document.getElementById('load-batch');
+        const mtpInp = document.getElementById('load-mtp');
+        const lowSpecInp = document.getElementById('load-low-spec');
+
+        const payload = {
+          model_path: path,
+          gpu_layers: gpuInp && gpuInp.value ? parseInt(gpuInp.value) : null,
+          threads: thInp && thInp.value ? parseInt(thInp.value) : null,
+          batch: bInp && bInp.value ? parseInt(bInp.value) : null,
+          mtp: mtpInp ? mtpInp.value : 'auto',
+          low_spec: lowSpecInp ? lowSpecInp.checked : false
+        };
+
         res.style.display = 'block';
-        res.innerHTML = '<div style="color:#60a5fa; font-weight:600;">⏳ Loading model & synthesizing/attaching MTP draft...</div>';
+        res.innerHTML = '<div style="color:#60a5fa; font-weight:600;">⏳ Loading model with optimized settings & synthesizing/attaching MTP draft...</div>';
         try {
           const resp = await fetch('/api/models/load', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({model_path: path})
+            body: JSON.stringify(payload)
           });
           const out = await resp.json();
           if (resp.ok) {
             res.innerHTML = '<div style="color:#79dfa0; font-weight:700;">⚡ Model successfully loaded!</div>' +
-              '<div style="color:var(--st-text-muted); margin-top:4px;">' + out.message + ' (Active: ' + out.model + ')</div>';
+              '<div style="color:var(--st-text-muted); margin-top:4px;">' + out.message + ' (Active: ' + out.model + ' · Layers: ' + out.gpu_layers + ' · Threads: ' + out.threads + ')</div>';
             setTimeout(() => { if (window.location) window.location.reload(); }, 1500);
           } else {
             res.innerHTML = '<div style="color:#ff7887;">Load error: ' + (out.detail || 'Failed to load model') + '</div>';
