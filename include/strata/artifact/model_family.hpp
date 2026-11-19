@@ -20,7 +20,7 @@ enum class ModelFamily {
 
 inline ModelFamily model_family_from_arch(const std::string& arch) {
     if (arch == "qwen4exp") return ModelFamily::Qwen4Exp;
-    if (arch == "qwen35moe") return ModelFamily::Qwen35Moe;
+    if (arch == "qwen35moe" || arch == "qwen3moe") return ModelFamily::Qwen35Moe;
     return ModelFamily::Unknown;
 }
 
