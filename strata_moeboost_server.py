@@ -598,25 +598,55 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
     # Configure MTP (Multi-Token Prediction / Speculative Lookahead) Drafter
     drafter = None
     if mtp in ("auto", "on", "true", "1"):
-        # 1. First check if a dedicated draft.gguf exists
-        draft_file = Path(path).parent / "draft.gguf"
-        if not draft_file.exists():
-            draft_file = Path("/media/local-ai/Model/draft.gguf")
+        model_p = Path(path)
+        # Dedicated model-specific draft file named after the model: <model_stem>_draft.gguf
+        model_specific_draft = model_p.parent / f"{model_p.stem}_draft.gguf"
+        legacy_draft = model_p.parent / "draft.gguf"
 
-        # 2. If model doesn't have native MTP and no draft.gguf, auto-generate draft.gguf
-        if not draft_file.exists():
-            print("[Strata-MoEBoost] MTP not native: Auto-generating standalone draft.gguf...")
-            try:
-                from make_draft_gguf import create_draft_model
-                create_draft_model(path, str(draft_file), max_layers=1)
-            except Exception as e:
-                print(f"[Strata-MoEBoost] Auto draft generation note: {e}")
+        draft_file = None
+        if model_specific_draft.exists():
+            draft_file = model_specific_draft
+        elif legacy_draft.exists():
+            draft_file = legacy_draft
+        else:
+            draft_file = model_specific_draft
 
-        # 3. Bind speculative drafter
+        # Check if parent model has native MTP or speculative layers built in
+        has_native_mtp = False
+        try:
+            import gguf
+            reader = gguf.GGUFReader(str(model_p))
+            for f in reader.fields.values():
+                if "mtp" in f.name.lower() or "speculative" in f.name.lower():
+                    has_native_mtp = True
+                    break
+            if not has_native_mtp:
+                for t in reader.tensors:
+                    if "mtp" in t.name.lower():
+                        has_native_mtp = True
+                        break
+        except Exception:
+            pass
+
+        if has_native_mtp:
+            print("[Strata-MoEBoost] Model has native MTP support built-in.")
+        else:
+            # If model has no native MTP support, auto-generate <model>_draft.gguf if missing
+            print(f"[Strata-MoEBoost] Model lacks native MTP. Attaching draft support ({draft_file.name})...")
+            if not draft_file.exists():
+                print(f"[Strata-MoEBoost] Generating model-specific draft: {draft_file.name}...")
+                try:
+                    from make_draft_gguf import create_draft_model
+                    create_draft_model(str(model_p), str(draft_file), max_layers=1)
+                    print(f"[Strata-MoEBoost] Draft created: {draft_file.name}")
+                except Exception as e:
+                    print(f"[Strata-MoEBoost] Draft creation note: {e}")
+
+        # Bind speculative drafter to engine
         try:
             from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
             drafter = LlamaPromptLookupDecoding(max_ngram_size=2, num_pred_tokens=2)
-            print(f"[Strata-MoEBoost] MTP Auto-Engaged (Drafter: draft.gguf={draft_file.exists()}, Speculative Pager Active).")
+            print(f"[Strata-MoEBoost] MTP Auto-Engaged: Speculative Lookahead Drafter active (draft: {draft_file.name if draft_file and draft_file.exists() else 'lookup'}).")
         except Exception as e:
             print(f"[Strata-MoEBoost] MTP Drafter notice: {e}")
 
