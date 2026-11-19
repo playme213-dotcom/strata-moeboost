@@ -63,13 +63,29 @@ def create_draft_model(src_path: str, out_path: str, max_layers: int = 1):
                 int_list = [int(field.parts[i][0]) for i in field.data]
                 writer.add_array(name, int_list)
 
+    # Copy all model architecture-specific parameters (e.g. layer_norm_rms_epsilon, rope.freq_base, etc.)
+    for field in reader.fields.values():
+        name = field.name
+        if not name.startswith(f"{arch}."):
+            continue
+        if name in (f"{arch}.block_count", f"{arch}.expert_count", f"{arch}.expert_used_count"):
+            continue
+
+        ftype = field.types[0]
+        if ftype == GGUFValueType.STRING:
+            val = bytes(field.parts[field.data[0]]).decode("utf-8", errors="ignore")
+            writer.add_string(name, val)
+        elif ftype == GGUFValueType.UINT32:
+            writer.add_uint32(name, int(field.parts[field.data[0]][0]))
+        elif ftype == GGUFValueType.INT32:
+            writer.add_int32(name, int(field.parts[field.data[0]][0]))
+        elif ftype == GGUFValueType.FLOAT32:
+            writer.add_float32(name, float(field.parts[field.data[0]][0]))
+        elif ftype == GGUFValueType.BOOL:
+            writer.add_bool(name, bool(field.parts[field.data[0]][0]))
+
     # Set draft model layer count
     writer.add_uint32(f"{arch}.block_count", max_layers)
-
-    for k in ["embedding_length", "feed_forward_length", "attention.head_count", "attention.head_count_kv", "context_length"]:
-        f = reader.get_field(f"{arch}.{k}")
-        if f:
-            writer.add_uint32(f"{arch}.{k}", int(f.parts[f.data[0]][0]))
 
     # Transfer draft tensors directly using t.data
     copied = 0
