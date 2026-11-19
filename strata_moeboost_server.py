@@ -1177,27 +1177,23 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
 
     # Check for Native Strata-HotRod Unpacked Engine execution
     model_p = Path(path)
-    use_native_unpack = (engine_mode == "strata_unpacked") or (engine_mode == "auto" and "flash-next" in model_p.name.lower())
+    use_native_unpack = (engine_mode in ("strata_unpacked", "unpacked")) or (engine_mode == "auto" and ("flash-next" in model_p.name.lower() or "unpacked" in model_p.name.lower()))
 
     if use_native_unpack:
         try:
-            print(f"[Strata-MoEBoost] Unpacking {model_p.name} for Zero-Overhead Native C++ Strata Execution...")
-            pack_dir = ROOT / "pack" / model_p.stem
-            from strata_unpacker import unpack_gguf
-            unpack_gguf(str(model_p), str(pack_dir), compat_bf16=True, skip_experts=True)
-
-            from strata_hybrid_adapter import HybridStrataLLM
-            state.llm = HybridStrataLLM(pack_dir=str(pack_dir))
+            print(f"[Strata-MoEBoost] Launching Universal Unpacked Loader for {model_p.name} (Zero llama-cpp-python)...")
+            from strata_unpacked_loader import UnpackedMoELoader
+            state.llm = UnpackedMoELoader(gguf_path=str(model_p), use_pager=True)
             state.engine_mode = "strata_unpacked"
             state.model_path = path
             state.model_name = model_p.stem
             state.n_ctx = n_ctx or 4096
             state.n_gpu_layers = n_gpu_layers or 4
             state.n_threads = n_threads or 8
-            print(f"[Strata-MoEBoost] Successfully engaged Native Strata-HotRod Unpacked Engine (Zero llama-cpp-python).")
+            print(f"[Strata-MoEBoost] Successfully engaged Universal Unpacked Architecture Loader ({state.llm.arch}, features: {', '.join(state.llm.native_features)}).")
             return
         except Exception as e:
-            print(f"[Strata-MoEBoost] Native Strata unpack execution notice: {e}. Falling back to standard mode...")
+            print(f"[Strata-MoEBoost] Unpacked loader fallback notice: {e}. Falling back to standard mode...")
 
     state.engine_mode = "llama"
     from strata_optimizer import analyze_hardware
