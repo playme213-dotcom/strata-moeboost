@@ -46,14 +46,40 @@ download_file() {
         fi
     fi
 
-    if [ "$DL_TOOL" = "aria2c" ]; then
-        aria2c -c -x 8 -s 8 -k 1M --file-allocation=none --dir="$outdir" --out="$fname" "$url"
-    elif [ "$DL_TOOL" = "wget" ]; then
-        wget -c -O "$outfile" "$url"
-    elif [ "$DL_TOOL" = "curl" ]; then
-        curl -L -C - -o "$outfile" "$url"
+    local hf_header=()
+    local wget_header=()
+    local curl_header=()
+    if [ -n "${HF_TOKEN:-}" ]; then
+        hf_header=(--header="Authorization: Bearer $HF_TOKEN")
+        wget_header=(--header="Authorization: Bearer $HF_TOKEN")
+        curl_header=(-H "Authorization: Bearer $HF_TOKEN")
     fi
-    echo "[✓] Download complete: $outfile"
+
+    local dl_success=0
+    if [ "$DL_TOOL" = "aria2c" ]; then
+        aria2c -c -x 8 -s 8 -k 1M --file-allocation=none \
+            --header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+            "${hf_header[@]}" \
+            --dir="$outdir" --out="$fname" "$url" && dl_success=1 || true
+    fi
+
+    if [ "$dl_success" -ne 1 ] && command -v wget >/dev/null 2>&1; then
+        wget -c --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+            "${wget_header[@]}" \
+            -O "$outfile" "$url" && dl_success=1 || true
+    fi
+
+    if [ "$dl_success" -ne 1 ] && command -v curl >/dev/null 2>&1; then
+        curl -L -C - --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+            "${curl_header[@]}" \
+            -o "$outfile" "$url" && dl_success=1 || true
+    fi
+
+    if [ "$dl_success" -eq 1 ] && [ -f "$outfile" ]; then
+        echo "[✓] Download complete: $outfile"
+    else
+        echo "[-] Download failed or incomplete for $outfile"
+    fi
 }
 
 # Catalog of Models:
@@ -81,11 +107,11 @@ MODEL_DESCS[4]="125B MoE | ~11.5 GB | Swift fine-tune for instruction following"
 
 # 2. Cerebras / Qwen3-MoE Series
 MODEL_NAMES[5]="Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS (Installed Default)"
-MODEL_URLS[5]="https://huggingface.co/cerebras/Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
+MODEL_URLS[5]="https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
 MODEL_DESCS[5]="25B Total / 3B Active | 12.5 GB | Excellent low-VRAM coding MoE"
 
 MODEL_NAMES[6]="Cerebras Qwen3-Coder-REAP-25B-A3B Q2_K (Low Specs)"
-MODEL_URLS[6]="https://huggingface.co/cerebras/Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
+MODEL_URLS[6]="https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
 MODEL_DESCS[6]="25B Total / 3B Active | ~8.7 GB | High speed for 2-4GB VRAM"
 
 # 3. DeepSeek & Mixtral MoE Models

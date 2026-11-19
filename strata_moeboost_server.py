@@ -692,7 +692,7 @@ DOWNLOAD_CATALOG = [
         "family": "MoE Coding & Reasoning",
         "name": "Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS",
         "desc": "25B Total / 3B Active MoE | 12.5 GB | Flagship coding & reasoning engine",
-        "url": "https://huggingface.co/cerebras/Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf",
+        "url": "https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf",
         "filename": "cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf",
         "size_gb": 12.52
     },
@@ -701,7 +701,7 @@ DOWNLOAD_CATALOG = [
         "family": "MoE Coding & Reasoning",
         "name": "Cerebras Qwen3-Coder-REAP-25B-A3B Q2_K (Turbo Fast)",
         "desc": "25B Total / 3B Active MoE | ~8.1 GB | Optimized for 2GB-4GB VRAM low-spec PCs",
-        "url": "https://huggingface.co/cerebras/Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf",
+        "url": "https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf",
         "filename": "cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf",
         "size_gb": 8.14
     },
@@ -780,10 +780,14 @@ def run_download_thread(url: str, dest_path: str):
         
         # Prefer aria2c if available
         import shutil, subprocess
+        hf_token = os.environ.get("HF_TOKEN")
+        hf_hdr = [f"--header=Authorization: Bearer {hf_token}"] if hf_token else []
+        ua_hdr = ["--header=User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)"]
+
         if shutil.which("aria2c"):
             out_dir = os.path.dirname(dest_path)
             fname = os.path.basename(dest_path)
-            cmd = ["aria2c", "-c", "-x", "8", "-s", "8", "-k", "1M", "--file-allocation=none", f"--dir={out_dir}", f"--out={fname}", url]
+            cmd = ["aria2c", "-c", "-x", "8", "-s", "8", "-k", "1M", "--file-allocation=none", *ua_hdr, *hf_hdr, f"--dir={out_dir}", f"--out={fname}", url]
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             for line in proc.stdout:
                 if "%" in line:
@@ -793,11 +797,24 @@ def run_download_thread(url: str, dest_path: str):
                 raise RuntimeError(f"aria2c exited with code {proc.returncode}")
         else:
             import urllib.request
-            def progress(blocks, block_size, total_size):
-                if total_size > 0:
-                    pct = min(100.0, (blocks * block_size / total_size) * 100)
-                    download_job["percent"] = round(pct, 1)
-                    download_job["speed"] = f"{pct:.1f}% of {total_size // (1024*1024)} MB"
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            if hf_token:
+                headers["Authorization"] = f"Bearer {hf_token}"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req) as resp, open(dest_path, "wb") as out_f:
+                total_size = int(resp.headers.get("Content-Length", 0))
+                downloaded = 0
+                block_size = 1024 * 1024
+                while True:
+                    chunk = resp.read(block_size)
+                    if not chunk:
+                        break
+                    out_f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        pct = min(100.0, (downloaded / total_size) * 100)
+                        download_job["percent"] = round(pct, 1)
+                        download_job["speed"] = f"{pct:.1f}% ({downloaded // (1024*1024)}MB / {total_size // (1024*1024)}MB)"
             urllib.request.urlretrieve(url, dest_path, reporthook=progress)
         
         download_job["status"] = "completed"

@@ -37,10 +37,10 @@ if /i "%CHOICE%"=="1" (
     set "URL=https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-1.5-Qwen3.8-Flash-Next-IQ3_S.gguf"
     set "OUTFILE=%DEST_DIR%\Swift-1.5-Qwen3.8-Flash-Next-IQ3_S.gguf"
 ) else if /i "%CHOICE%"=="3" (
-    set "URL=https://huggingface.co/cerebras/Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
+    set "URL=https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
     set "OUTFILE=%DEST_DIR%\cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
 ) else if /i "%CHOICE%"=="4" (
-    set "URL=https://huggingface.co/cerebras/Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
+    set "URL=https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
     set "OUTFILE=%DEST_DIR%\cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
 ) else if /i "%CHOICE%"=="5" (
     set "URL=https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/resolve/main/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"

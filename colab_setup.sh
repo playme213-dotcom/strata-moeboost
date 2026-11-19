@@ -69,7 +69,7 @@ SELECTED_FILE=""
 
 case "$MODEL_CHOICE" in
     2)
-        SELECTED_URL="https://huggingface.co/cerebras/Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
+        SELECTED_URL="https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
         SELECTED_FILE="$MODEL_DIR/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
         ;;
     3)
@@ -93,7 +93,7 @@ case "$MODEL_CHOICE" in
         SELECTED_FILE="$CUSTOM_PATH"
         ;;
     1|*)
-        SELECTED_URL="https://huggingface.co/cerebras/Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
+        SELECTED_URL="https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
         SELECTED_FILE="$MODEL_DIR/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
         ;;
 esac
@@ -103,12 +103,41 @@ echo ""
 echo "[Step 3/5] Checking / Downloading Model..."
 if [ -n "$SELECTED_URL" ] && [ ! -f "$SELECTED_FILE" ]; then
     echo "[+] Downloading from: $SELECTED_URL"
+    FILENAME="$(basename "$SELECTED_FILE")"
+    
+    # Build optional auth headers if HF_TOKEN is present
+    HF_HEADER=()
+    WGET_HEADER=()
+    CURL_HEADER=()
+    if [ -n "${HF_TOKEN:-}" ]; then
+        echo "[+] Authenticating with provided HF_TOKEN..."
+        HF_HEADER=(--header="Authorization: Bearer $HF_TOKEN")
+        WGET_HEADER=(--header="Authorization: Bearer $HF_TOKEN")
+        CURL_HEADER=(-H "Authorization: Bearer $HF_TOKEN")
+    fi
+
+    # Try downloading with aria2c, wget, or curl with resilient fallbacks
+    DL_SUCCESS=0
     if command -v aria2c >/dev/null 2>&1; then
-        aria2c -c -x 8 -s 8 -k 1M --file-allocation=none --dir="$MODEL_DIR" --out="$(basename "$SELECTED_FILE")" "$SELECTED_URL"
-    elif command -v wget >/dev/null 2>&1; then
-        wget -c -O "$SELECTED_FILE" "$SELECTED_URL"
-    else
-        curl -L -C - -o "$SELECTED_FILE" "$SELECTED_URL"
+        echo "[+] Attempting download with aria2c..."
+        aria2c -c -x 8 -s 8 -k 1M --file-allocation=none \
+            --header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+            "${HF_HEADER[@]}" \
+            --dir="$MODEL_DIR" --out="$FILENAME" "$SELECTED_URL" && DL_SUCCESS=1 || true
+    fi
+
+    if [ "$DL_SUCCESS" -ne 1 ] && command -v wget >/dev/null 2>&1; then
+        echo "[+] Fallback: Attempting download with wget..."
+        wget -c --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+            "${WGET_HEADER[@]}" \
+            -O "$SELECTED_FILE" "$SELECTED_URL" && DL_SUCCESS=1 || true
+    fi
+
+    if [ "$DL_SUCCESS" -ne 1 ]; then
+        echo "[+] Fallback: Attempting download with curl..."
+        curl -L -C - --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+            "${CURL_HEADER[@]}" \
+            -o "$SELECTED_FILE" "$SELECTED_URL" && DL_SUCCESS=1 || true
     fi
 else
     echo "[✓] Using model file: $SELECTED_FILE"
