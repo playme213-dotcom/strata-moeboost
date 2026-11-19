@@ -14,13 +14,11 @@ echo    ⚡ Strata-MoEBoost Model Downloader (Windows)
 echo ==================================================================
 echo  Destination Directory: %DEST_DIR%
 echo ------------------------------------------------------------------
-echo  [HotRod Flash-Next Family]
-echo   [1] Qwen3.8-Flash-Next IQ3_S (HotRod Original Native - 11.5 GB)
-echo   [2] Swift-1.5-Qwen3.8-Flash-Next IQ3_S (11.5 GB)
-echo.
-echo  [MoE Coding ^& Reasoning Family]
-echo   [3] Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS (12.5 GB - Recommended)
-echo   [4] Cerebras Qwen3-Coder-REAP-25B-A3B Q2_K (8.7 GB - Low VRAM)
+echo  [MoE Coding & Reasoning Family]
+echo   [1] Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS (12.5 GB - Recommended)
+echo   [2] Cerebras Qwen3-Coder-REAP-25B-A3B Q2_K (8.1 GB - Low VRAM)
+echo   [3] Qwen3-Coder-Next IQ2_XXS (17.9 GB - 80B MoE Flagship)
+echo   [4] Qwen1.5-MoE-A2.7B-Chat Q2_K (5.5 GB - Ultra Compact)
 echo   [5] DeepSeek-Coder-V2-Lite-Instruct Q4_K_M (9.6 GB)
 echo   [6] Mixtral-8x7B-Instruct-v0.1 Q3_K_M (22.5 GB)
 echo ------------------------------------------------------------------
@@ -31,17 +29,17 @@ echo ==================================================================
 set /p CHOICE="Enter choice [1-6, C, Q]: "
 
 if /i "%CHOICE%"=="1" (
-    set "URL=https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Qwen3.8-Flash-Next-IQ3_S.gguf"
-    set "OUTFILE=%DEST_DIR%\Qwen3.8-Flash-Next-IQ3_S.gguf"
-) else if /i "%CHOICE%"=="2" (
-    set "URL=https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-1.5-Qwen3.8-Flash-Next-IQ3_S.gguf"
-    set "OUTFILE=%DEST_DIR%\Swift-1.5-Qwen3.8-Flash-Next-IQ3_S.gguf"
-) else if /i "%CHOICE%"=="3" (
     set "URL=https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
     set "OUTFILE=%DEST_DIR%\cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
-) else if /i "%CHOICE%"=="4" (
+) else if /i "%CHOICE%"=="2" (
     set "URL=https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
     set "OUTFILE=%DEST_DIR%\cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
+) else if /i "%CHOICE%"=="3" (
+    set "URL=https://huggingface.co/bartowski/Qwen_Qwen3-Coder-Next-GGUF/resolve/main/Qwen_Qwen3-Coder-Next-IQ2_XXS.gguf"
+    set "OUTFILE=%DEST_DIR%\Qwen_Qwen3-Coder-Next-IQ2_XXS.gguf"
+) else if /i "%CHOICE%"=="4" (
+    set "URL=https://huggingface.co/tensorblock/Qwen1.5-MoE-A2.7B-Chat-GGUF/resolve/main/Qwen1.5-MoE-A2.7B-Chat-Q2_K.gguf"
+    set "OUTFILE=%DEST_DIR%\Qwen1.5-MoE-A2.7B-Chat-Q2_K.gguf"
 ) else if /i "%CHOICE%"=="5" (
     set "URL=https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/resolve/main/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
     set "OUTFILE=%DEST_DIR%\DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"

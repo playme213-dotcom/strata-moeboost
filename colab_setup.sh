@@ -50,9 +50,9 @@ echo ""
 echo "[Step 2/5] Model Selection:"
 echo "------------------------------------------------------------------"
 echo " 1) Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS (12.5GB) - Recommended MoE"
-echo " 2) Cerebras Qwen3-Coder-REAP-25B-A3B Q2_K (8.7GB) - Low VRAM MoE"
-echo " 3) Qwen3.8-Flash-Next IQ3_S (11.5GB) - HotRod 125B MoE Flagship"
-echo " 4) Swift-1.5-Qwen3.8-Flash-Next IQ3_S (11.5GB) - HotRod Swift MoE"
+echo " 2) Cerebras Qwen3-Coder-REAP-25B-A3B Q2_K (8.1GB) - Low VRAM MoE"
+echo " 3) Qwen3-Coder-Next IQ2_XXS (17.9GB) - 80B MoE Next-Gen Flagship"
+echo " 4) Qwen1.5-MoE-A2.7B-Chat Q2_K (5.5GB) - Ultra-Fast Lightweight MoE"
 echo " 5) DeepSeek-Coder-V2-Lite-Instruct Q4_K_M (9.6GB) - Coding MoE"
 echo " 6) Mixtral-8x7B-Instruct-v0.1 Q3_K_M (22.5GB) - 8x7B Standard MoE"
 echo " 7) Existing local model (Specify path)"
@@ -73,12 +73,12 @@ case "$MODEL_CHOICE" in
         SELECTED_FILE="$MODEL_DIR/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
         ;;
     3)
-        SELECTED_URL="https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Qwen3.8-Flash-Next-IQ3_S.gguf"
-        SELECTED_FILE="$MODEL_DIR/Qwen3.8-Flash-Next-IQ3_S.gguf"
+        SELECTED_URL="https://huggingface.co/bartowski/Qwen_Qwen3-Coder-Next-GGUF/resolve/main/Qwen_Qwen3-Coder-Next-IQ2_XXS.gguf"
+        SELECTED_FILE="$MODEL_DIR/Qwen_Qwen3-Coder-Next-IQ2_XXS.gguf"
         ;;
     4)
-        SELECTED_URL="https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-1.5-Qwen3.8-Flash-Next-IQ3_S.gguf"
-        SELECTED_FILE="$MODEL_DIR/Swift-1.5-Qwen3.8-Flash-Next-IQ3_S.gguf"
+        SELECTED_URL="https://huggingface.co/tensorblock/Qwen1.5-MoE-A2.7B-Chat-GGUF/resolve/main/Qwen1.5-MoE-A2.7B-Chat-Q2_K.gguf"
+        SELECTED_FILE="$MODEL_DIR/Qwen1.5-MoE-A2.7B-Chat-Q2_K.gguf"
         ;;
     5)
         SELECTED_URL="https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/resolve/main/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"

@@ -661,36 +661,9 @@ async def restart_server_api():
 
 DOWNLOAD_CATALOG = [
     {
-        "id": "qwen38-flash-next-iq3s",
-        "family": "HotRod Flash-Next",
-        "name": "Qwen3.8-Flash-Next IQ3_S (HotRod Original Native)",
-        "desc": "125B MoE | ~11.5 GB | Learned look-ahead enabled (Taalas architecture)",
-        "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Qwen3.8-Flash-Next-IQ3_S.gguf",
-        "filename": "Qwen3.8-Flash-Next-IQ3_S.gguf",
-        "size_gb": 11.5
-    },
-    {
-        "id": "swift-flash-next-iq3s",
-        "family": "HotRod Flash-Next",
-        "name": "Swift-1.5-Qwen3.8-Flash-Next IQ3_S",
-        "desc": "125B MoE | ~11.5 GB | Swift fine-tune instruction following",
-        "url": "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-1.5-Qwen3.8-Flash-Next-IQ3_S.gguf",
-        "filename": "Swift-1.5-Qwen3.8-Flash-Next-IQ3_S.gguf",
-        "size_gb": 11.5
-    },
-    {
-        "id": "qwen38-flash-next-q20",
-        "family": "HotRod Flash-Next",
-        "name": "Qwen3.8-Flash-Next Q2_0 (Ultra-Low RAM)",
-        "desc": "125B MoE | ~8.9 GB | Fits easily on 16GB RAM machines",
-        "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Qwen3.8-Flash-Next-Q2_0.gguf",
-        "filename": "Qwen3.8-Flash-Next-Q2_0.gguf",
-        "size_gb": 8.9
-    },
-    {
         "id": "cerebras-qwen3-coder-iq4xs",
         "family": "MoE Coding & Reasoning",
-        "name": "Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS",
+        "name": "Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS (Installed Default)",
         "desc": "25B Total / 3B Active MoE | 12.5 GB | Flagship coding & reasoning engine",
         "url": "https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf",
         "filename": "cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf",
@@ -700,10 +673,46 @@ DOWNLOAD_CATALOG = [
         "id": "cerebras-qwen3-coder-q2k",
         "family": "MoE Coding & Reasoning",
         "name": "Cerebras Qwen3-Coder-REAP-25B-A3B Q2_K (Turbo Fast)",
-        "desc": "25B Total / 3B Active MoE | ~8.1 GB | Optimized for 2GB-4GB VRAM low-spec PCs",
+        "desc": "25B Total / 3B Active MoE | ~8.1 GB | High speed for 2GB-4GB VRAM low-spec PCs",
         "url": "https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf",
         "filename": "cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf",
         "size_gb": 8.14
+    },
+    {
+        "id": "qwen3-coder-next-iq2xxs",
+        "family": "MoE Coding & Reasoning",
+        "name": "Qwen3-Coder-Next IQ2_XXS (80B MoE)",
+        "desc": "80B Total / 3B Active MoE | 17.9 GB | Next-Gen ultra-sparse agentic coding engine",
+        "url": "https://huggingface.co/bartowski/Qwen_Qwen3-Coder-Next-GGUF/resolve/main/Qwen_Qwen3-Coder-Next-IQ2_XXS.gguf",
+        "filename": "Qwen_Qwen3-Coder-Next-IQ2_XXS.gguf",
+        "size_gb": 17.97
+    },
+    {
+        "id": "qwen3-coder-next-q2k",
+        "family": "MoE Coding & Reasoning",
+        "name": "Qwen3-Coder-Next Q2_K (80B MoE)",
+        "desc": "80B Total / 3B Active MoE | 26.2 GB | SOTA 256k context coding MoE",
+        "url": "https://huggingface.co/bartowski/Qwen_Qwen3-Coder-Next-GGUF/resolve/main/Qwen_Qwen3-Coder-Next-Q2_K.gguf",
+        "filename": "Qwen_Qwen3-Coder-Next-Q2_K.gguf",
+        "size_gb": 26.23
+    },
+    {
+        "id": "qwen15-moe-a27b-q2k",
+        "family": "MoE Lightweight",
+        "name": "Qwen1.5-MoE-A2.7B-Chat Q2_K (Compact)",
+        "desc": "14.3B Total / 2.7B Active MoE | 5.5 GB | Blazing fast for low-RAM laptops",
+        "url": "https://huggingface.co/tensorblock/Qwen1.5-MoE-A2.7B-Chat-GGUF/resolve/main/Qwen1.5-MoE-A2.7B-Chat-Q2_K.gguf",
+        "filename": "Qwen1.5-MoE-A2.7B-Chat-Q2_K.gguf",
+        "size_gb": 5.49
+    },
+    {
+        "id": "qwen15-moe-a27b-q3km",
+        "family": "MoE Lightweight",
+        "name": "Qwen1.5-MoE-A2.7B-Chat Q3_K_M",
+        "desc": "14.3B Total / 2.7B Active MoE | 6.9 GB | High quality compact conversational MoE",
+        "url": "https://huggingface.co/tensorblock/Qwen1.5-MoE-A2.7B-Chat-GGUF/resolve/main/Qwen1.5-MoE-A2.7B-Chat-Q3_K_M.gguf",
+        "filename": "Qwen1.5-MoE-A2.7B-Chat-Q3_K_M.gguf",
+        "size_gb": 6.93
     },
     {
         "id": "deepseek-coder-v2-lite-q4km",
@@ -724,8 +733,17 @@ DOWNLOAD_CATALOG = [
         "size_gb": 6.9
     },
     {
+        "id": "phi-35-moe-q2k",
+        "family": "MoE Multilingual",
+        "name": "Phi-3.5-MoE-Instruct Q2_K",
+        "desc": "42B Total / 6.6B Active MoE | 14.2 GB | Microsoft high-reasoning MoE",
+        "url": "https://huggingface.co/bartowski/Phi-3.5-MoE-instruct-GGUF/resolve/main/Phi-3.5-MoE-instruct-Q2_K.gguf",
+        "filename": "Phi-3.5-MoE-instruct-Q2_K.gguf",
+        "size_gb": 14.22
+    },
+    {
         "id": "mixtral-8x7b-instruct-q3km",
-        "family": "MoE Coding & Reasoning",
+        "family": "MoE Standard Open-Weight",
         "name": "Mixtral-8x7B-Instruct-v0.1 Q3_K_M",
         "desc": "46.7B Total / 12.9B Active MoE | ~22.5 GB | Standard high-capacity MoE",
         "url": "https://huggingface.co/TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF/resolve/main/mixtral-8x7b-instruct-v0.1.Q3_K_M.gguf",
@@ -778,9 +796,21 @@ def run_download_thread(url: str, dest_path: str):
         download_job["speed"] = "Connecting..."
         download_job["error"] = None
         
-        # Prefer aria2c if available
-        import shutil, subprocess
+        # Check if URL resolves cleanly before launching downloader
+        import urllib.request, shutil, subprocess
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         hf_token = os.environ.get("HF_TOKEN")
+        if hf_token:
+            headers["Authorization"] = f"Bearer {hf_token}"
+
+        # Probe HEAD to verify access and obtain actual content size
+        head_req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(head_req, timeout=15) as probe:
+            total_size = int(probe.headers.get("Content-Length", 0))
+
+        download_job["speed"] = f"0.0% of {total_size // (1024*1024)} MB" if total_size > 0 else "Downloading..."
+
+        # Prefer aria2c if available
         hf_hdr = [f"--header=Authorization: Bearer {hf_token}"] if hf_token else []
         ua_hdr = ["--header=User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)"]
 
@@ -790,19 +820,20 @@ def run_download_thread(url: str, dest_path: str):
             cmd = ["aria2c", "-c", "-x", "8", "-s", "8", "-k", "1M", "--file-allocation=none", *ua_hdr, *hf_hdr, f"--dir={out_dir}", f"--out={fname}", url]
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             for line in proc.stdout:
-                if "%" in line:
-                    download_job["speed"] = line.strip()
+                line_str = line.strip()
+                if "%" in line_str:
+                    download_job["speed"] = line_str
+                    # Parse percentage from line e.g. (15%)
+                    import re
+                    m = re.search(r'\((\d{1,3})%\)', line_str)
+                    if m:
+                        download_job["percent"] = float(m.group(1))
             proc.wait()
             if proc.returncode != 0:
                 raise RuntimeError(f"aria2c exited with code {proc.returncode}")
         else:
-            import urllib.request
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-            if hf_token:
-                headers["Authorization"] = f"Bearer {hf_token}"
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req) as resp, open(dest_path, "wb") as out_f:
-                total_size = int(resp.headers.get("Content-Length", 0))
+            with urllib.request.urlopen(req, timeout=30) as resp, open(dest_path, "wb") as out_f:
                 downloaded = 0
                 block_size = 1024 * 1024
                 while True:
@@ -815,7 +846,6 @@ def run_download_thread(url: str, dest_path: str):
                         pct = min(100.0, (downloaded / total_size) * 100)
                         download_job["percent"] = round(pct, 1)
                         download_job["speed"] = f"{pct:.1f}% ({downloaded // (1024*1024)}MB / {total_size // (1024*1024)}MB)"
-            urllib.request.urlretrieve(url, dest_path, reporthook=progress)
         
         download_job["status"] = "completed"
         download_job["percent"] = 100.0

@@ -82,54 +82,54 @@ download_file() {
     fi
 }
 
-# Catalog of Models:
-# MoE models + HotRod's original Flash-Next series
+# Catalog of Mixture of Experts (MoE) Models
 declare -A MODEL_NAMES
 declare -A MODEL_URLS
 declare -A MODEL_DESCS
 
-# 1. Qwen3.8-Flash-Next (HotRod's flagship models)
-MODEL_NAMES[1]="Qwen3.8-Flash-Next IQ3_S (HotRod Original Native)"
-MODEL_URLS[1]="https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Qwen3.8-Flash-Next-IQ3_S.gguf"
-MODEL_DESCS[1]="125B MoE | ~11.5 GB | HotRod baseline look-ahead enabled"
+# 1. Cerebras / Qwen3-MoE Series
+MODEL_NAMES[1]="Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS (Installed Default)"
+MODEL_URLS[1]="https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
+MODEL_DESCS[1]="25B Total / 3B Active | 12.5 GB | Flagship coding & reasoning engine"
 
-MODEL_NAMES[2]="Qwen3.8-Flash-Next UD-IQ4_XS (Split shards 1-3)"
-MODEL_URLS[2]="https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf"
-MODEL_DESCS[2]="125B MoE | ~14.8 GB | Ultra-dense IQ4 quantization"
+MODEL_NAMES[2]="Cerebras Qwen3-Coder-REAP-25B-A3B Q2_K (Turbo Fast)"
+MODEL_URLS[2]="https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
+MODEL_DESCS[2]="25B Total / 3B Active | ~8.1 GB | High speed for 2-4GB VRAM low-spec PCs"
 
-MODEL_NAMES[3]="Qwen3.8-Flash-Next Q2_0 (Ultra-Low RAM)"
-MODEL_URLS[3]="https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Qwen3.8-Flash-Next-Q2_0.gguf"
-MODEL_DESCS[3]="125B MoE | ~8.9 GB | Suitable for 16GB RAM machines"
+# 2. Qwen3-Coder-Next MoE (80B)
+MODEL_NAMES[3]="Qwen3-Coder-Next IQ2_XXS (80B MoE)"
+MODEL_URLS[3]="https://huggingface.co/bartowski/Qwen_Qwen3-Coder-Next-GGUF/resolve/main/Qwen_Qwen3-Coder-Next-IQ2_XXS.gguf"
+MODEL_DESCS[3]="80B Total / 3B Active | 17.9 GB | Next-Gen ultra-sparse agentic coding engine"
 
-MODEL_NAMES[4]="Swift-1.5-Qwen3.8-Flash-Next IQ3_S"
-MODEL_URLS[4]="https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF/resolve/main/Swift-1.5-Qwen3.8-Flash-Next-IQ3_S.gguf"
-MODEL_DESCS[4]="125B MoE | ~11.5 GB | Swift fine-tune for instruction following"
+MODEL_NAMES[4]="Qwen3-Coder-Next Q2_K (80B MoE)"
+MODEL_URLS[4]="https://huggingface.co/bartowski/Qwen_Qwen3-Coder-Next-GGUF/resolve/main/Qwen_Qwen3-Coder-Next-Q2_K.gguf"
+MODEL_DESCS[4]="80B Total / 3B Active | 26.2 GB | SOTA 256k context coding MoE"
 
-# 2. Cerebras / Qwen3-MoE Series
-MODEL_NAMES[5]="Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS (Installed Default)"
-MODEL_URLS[5]="https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
-MODEL_DESCS[5]="25B Total / 3B Active | 12.5 GB | Excellent low-VRAM coding MoE"
+# 3. Qwen1.5-MoE Compact Series
+MODEL_NAMES[5]="Qwen1.5-MoE-A2.7B-Chat Q2_K (Ultra Compact)"
+MODEL_URLS[5]="https://huggingface.co/tensorblock/Qwen1.5-MoE-A2.7B-Chat-GGUF/resolve/main/Qwen1.5-MoE-A2.7B-Chat-Q2_K.gguf"
+MODEL_DESCS[5]="14.3B Total / 2.7B Active | 5.5 GB | Ultra-fast low RAM footprint"
 
-MODEL_NAMES[6]="Cerebras Qwen3-Coder-REAP-25B-A3B Q2_K (Low Specs)"
-MODEL_URLS[6]="https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf"
-MODEL_DESCS[6]="25B Total / 3B Active | ~8.7 GB | High speed for 2-4GB VRAM"
+MODEL_NAMES[6]="Qwen1.5-MoE-A2.7B-Chat Q3_K_M"
+MODEL_URLS[6]="https://huggingface.co/tensorblock/Qwen1.5-MoE-A2.7B-Chat-GGUF/resolve/main/Qwen1.5-MoE-A2.7B-Chat-Q3_K_M.gguf"
+MODEL_DESCS[6]="14.3B Total / 2.7B Active | 6.9 GB | High quality compact conversational MoE"
 
-# 3. DeepSeek & Mixtral MoE Models
+# 4. DeepSeek & Phi & Mixtral MoE Models
 MODEL_NAMES[7]="DeepSeek-Coder-V2-Lite-Instruct Q4_K_M"
 MODEL_URLS[7]="https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/resolve/main/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
 MODEL_DESCS[7]="16B Total / 2.4B Active MoE | ~9.6 GB | Superior multilingual coding"
 
 MODEL_NAMES[8]="DeepSeek-Coder-V2-Lite-Instruct IQ3_M"
 MODEL_URLS[8]="https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/resolve/main/DeepSeek-Coder-V2-Lite-Instruct-IQ3_M.gguf"
-MODEL_DESCS[8]="16B Total / 2.4B Active MoE | ~6.9 GB | Fits in smaller RAM footprints"
+MODEL_DESCS[8]="16B Total / 2.4B Active MoE | ~6.9 GB | Small footprint coding MoE"
 
-MODEL_NAMES[9]="Mixtral-8x7B-Instruct-v0.1 Q3_K_M"
-MODEL_URLS[9]="https://huggingface.co/TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF/resolve/main/mixtral-8x7b-instruct-v0.1.Q3_K_M.gguf"
-MODEL_DESCS[9]="46.7B Total / 12.9B Active MoE | ~22.5 GB | Classical open standard MoE"
+MODEL_NAMES[9]="Phi-3.5-MoE-Instruct Q2_K"
+MODEL_URLS[9]="https://huggingface.co/bartowski/Phi-3.5-MoE-instruct-GGUF/resolve/main/Phi-3.5-MoE-instruct-Q2_K.gguf"
+MODEL_DESCS[9]="42B Total / 6.6B Active MoE | 14.2 GB | Microsoft high-reasoning MoE"
 
-MODEL_NAMES[10]="Qwen2.5-Coder-7B-Instruct Q4_K_M (Dense Fast Baseline)"
-MODEL_URLS[10]="https://huggingface.co/bartowski/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf"
-MODEL_DESCS[10]="7B Dense | 4.7 GB | Ultra-fast local validation model"
+MODEL_NAMES[10]="Mixtral-8x7B-Instruct-v0.1 Q3_K_M"
+MODEL_URLS[10]="https://huggingface.co/TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF/resolve/main/mixtral-8x7b-instruct-v0.1.Q3_K_M.gguf"
+MODEL_DESCS[10]="46.7B Total / 12.9B Active MoE | ~22.5 GB | Classical open standard MoE"
 
 show_menu() {
     clear 2>/dev/null || true
