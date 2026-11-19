@@ -262,6 +262,49 @@ async def save_settings(request: Request):
     return {"status": "ok"}
 
 
+def inspect_moe_architecture(model_path: str | Path) -> tuple[bool, str, int, int]:
+    """Inspects GGUF metadata to verify whether the model is an MoE model.
+    Returns: (is_moe: bool, architecture: str, expert_count: int, expert_used: int)
+    """
+    try:
+        import gguf
+        reader = gguf.GGUFReader(str(model_path))
+        arch = reader.get_field("general.architecture")
+        arch_str = bytes(arch.parts[arch.data[0]]).decode("utf-8").lower() if arch else ""
+
+        # Check for expert fields in KV pairs
+        expert_count = 0
+        expert_used = 0
+        for f in reader.fields.values():
+            name = f.name.lower()
+            if "expert_count" in name:
+                expert_count = int(f.parts[f.data[0]][0])
+            elif "expert_used_count" in name:
+                expert_used = int(f.parts[f.data[0]][0])
+
+        # If architecture explicitly states moe or has > 1 experts
+        if "moe" in arch_str or expert_count > 1:
+            return True, arch_str or "moe", expert_count or 103, expert_used or 8
+
+        # Tensor heuristic check
+        for t in reader.tensors:
+            tname = t.name.lower()
+            if "exps" in tname or "expert" in tname:
+                return True, arch_str or "moe", expert_count or 64, expert_used or 8
+
+        # Name heuristic check
+        name_lower = Path(model_path).name.lower()
+        if "moe" in name_lower or "a3b" in name_lower or "reap" in name_lower or "mixtral" in name_lower or "dsv" in name_lower or "flash-next" in name_lower:
+            return True, arch_str or "moe", expert_count or 103, expert_used or 8
+
+        return False, arch_str or "dense", 0, 0
+    except Exception:
+        # Fallback heuristic based on filename
+        name_lower = Path(model_path).name.lower()
+        if "moe" in name_lower or "a3b" in name_lower or "reap" in name_lower or "mixtral" in name_lower or "flash-next" in name_lower:
+            return True, "moe", 103, 8
+        return False, "dense", 0, 0
+
 def is_path_on_ssd(file_path: str | Path) -> bool:
     """Checks whether the underlying filesystem hosting file_path resides on an SSD / NVMe."""
     try:
@@ -288,7 +331,7 @@ def is_path_on_ssd(file_path: str | Path) -> bool:
         return False
 
 @app.get("/api/models")
-async def list_models_api(ssd_only: bool = True):
+async def list_models_api(ssd_only: bool = True, moe_only: bool = True):
     models = []
     scan_dirs = [
         Path(state.models_dir),
@@ -324,6 +367,11 @@ async def list_models_api(ssd_only: bool = True):
                 if ssd_only and not is_path_on_ssd(f):
                     continue
 
+                # Filter 5: Strictly MoE models only (reject dense models)
+                is_moe, arch, exp_cnt, exp_used = inspect_moe_architecture(f)
+                if moe_only and not is_moe:
+                    continue
+
                 seen_paths.add(f_str)
                 seen_names.add(f.name)
 
@@ -336,8 +384,6 @@ async def list_models_api(ssd_only: bool = True):
                 elif "q5_k_m" in name_lower: quant = "Q5_K_M"
                 elif "q8_0" in name_lower: quant = "Q8_0"
 
-                arch = "qwen3moe" if "qwen" in name_lower else ("deepseek" if "deepseek" in name_lower else "MoE")
-                
                 # Check MTP status: native MTP or external model draft
                 model_specific_draft = f_real.parent / f"{f_real.stem}_draft.gguf"
                 legacy_draft = f_real.parent / "draft.gguf"
@@ -348,28 +394,31 @@ async def list_models_api(ssd_only: bool = True):
                     "path": str(f),
                     "size_gb": size_gb,
                     "architecture": arch,
+                    "is_moe": True,
                     "quant": quant,
                     "storage": "SSD/NVMe",
                     "mtp_supported": mtp_supported,
                     "mtp_status": "MTP Active" if mtp_supported else "Lookup",
-                    "experts": 103 if "25b" in name_lower or "qwen3" in name_lower else 64,
-                    "top_k": 8,
+                    "experts": exp_cnt or 103,
+                    "top_k": exp_used or 8,
                     "layers": 48
                 })
 
-    # If no files found on disk, provide active model entry if valid
+    # If no files found on disk, provide active model entry if valid and MoE
     if not models and state.model_path and Path(state.model_path).exists():
         p = Path(state.model_path)
-        if not ("draft.gguf" in p.name.lower() or "-draft" in p.name.lower()):
+        is_moe, arch, exp_cnt, exp_used = inspect_moe_architecture(p)
+        if is_moe and not ("draft.gguf" in p.name.lower() or "-draft" in p.name.lower()):
             models.append({
                 "name": p.name,
                 "path": str(p),
                 "size_gb": round(p.stat().st_size / (1024**3), 2),
-                "architecture": "qwen3moe",
+                "architecture": arch,
+                "is_moe": True,
                 "quant": "IQ4_XS",
                 "storage": "SSD/NVMe" if is_path_on_ssd(p) else "HDD/SATA",
-                "experts": 103,
-                "top_k": 8,
+                "experts": exp_cnt or 103,
+                "top_k": exp_used or 8,
                 "layers": 48
             })
     return {"models": models, "active": state.model_name}
@@ -380,14 +429,28 @@ async def check_model_support(path: str):
     if not p.exists():
         raise HTTPException(status_code=404, detail="Model file not found")
     
+    is_moe, arch, exp_cnt, exp_used = inspect_moe_architecture(p)
     size_gb = round(p.stat().st_size / (1024**3), 2)
+
+    if not is_moe:
+        return {
+            "supported": False,
+            "name": p.name,
+            "size_gb": size_gb,
+            "architecture": arch,
+            "is_moe": False,
+            "fit_status": "Unsupported (Dense architecture)",
+            "message": "Strata-MoEBoost is exclusively designed for Mixture of Experts (MoE) architectures with expert cache paging. Dense models are not accepted."
+        }
+
     return {
         "supported": True,
         "name": p.name,
         "size_gb": size_gb,
-        "architecture": "qwen3moe / qwen35moe",
-        "experts": 103,
-        "top_k": 8,
+        "architecture": arch,
+        "is_moe": True,
+        "experts": exp_cnt or 103,
+        "top_k": exp_used or 8,
         "layers": 48,
         "fit_status": f"Fits comfortably ({size_gb} GB vs 22 GB Host RAM + 3 GB VRAM)",
         "recommended": "4 layers in VRAM, 4 physical CPU threads, 256 batch (Turbo MoEBoost Mode)",
@@ -453,6 +516,13 @@ async def load_model_api(req: ModelLoadRequest):
     p = Path(req.model_path)
     if not p.exists():
         raise HTTPException(status_code=404, detail="Model file not found")
+
+    is_moe, arch, exp_cnt, exp_used = inspect_moe_architecture(p)
+    if not is_moe:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Model '{p.name}' is a dense model ({arch}). Strata-MoEBoost strictly accepts Mixture of Experts (MoE) models only."
+        )
 
     try:
         # Run model loading in threadpool to avoid blocking event loop
