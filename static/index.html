@@ -587,12 +587,21 @@
         res.style.display = 'block';
         res.innerHTML = '<div style="color:#60a5fa; font-weight:600;">⏳ Loading model with optimized settings & synthesizing/attaching MTP draft...</div>';
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 180000); // 3-minute timeout for large model loads
           const resp = await fetch('/api/models/load', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: controller.signal
           });
-          const out = await resp.json();
+          clearTimeout(timeoutId);
+          let out;
+          try {
+            out = await resp.json();
+          } catch(err) {
+            out = {detail: resp.statusText || 'Server returned invalid response'};
+          }
           if (resp.ok) {
             res.innerHTML = '<div style="color:#79dfa0; font-weight:700;">⚡ Model successfully loaded!</div>' +
               '<div style="color:var(--st-text-muted); margin-top:4px;">' + out.message + ' (Active: ' + out.model + ' · Layers: ' + out.gpu_layers + ' · Threads: ' + out.threads + ')</div>';
@@ -601,7 +610,11 @@
             res.innerHTML = '<div style="color:#ff7887;">Load error: ' + (out.detail || 'Failed to load model') + '</div>';
           }
         } catch(e) {
-          res.innerHTML = '<div style="color:#ff7887;">Load error: ' + e.message + '</div>';
+          if (e.name === 'AbortError') {
+            res.innerHTML = '<div style="color:#ff7887;">Load error: Request timed out. Model may still be loading in the background.</div>';
+          } else {
+            res.innerHTML = '<div style="color:#ff7887;">Load error: ' + e.message + '</div>';
+          }
         }
       });
     }

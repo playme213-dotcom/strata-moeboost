@@ -457,10 +457,18 @@ async def list_models_api(ssd_only: bool = True, moe_only: bool = True):
                 if moe_only and not is_moe:
                     continue
 
+                # Check if file exists and is a regular file
+                try:
+                    if not f.is_file():
+                        continue
+                    st = f.stat()
+                except (FileNotFoundError, OSError):
+                    continue
+
                 seen_paths.add(f_str)
                 seen_names.add(f.name)
 
-                size_gb = round(f.stat().st_size / (1024**3), 2)
+                size_gb = round(st.st_size / (1024**3), 2)
                 quant = "IQ4_XS"
                 if "q2_k" in name_lower: quant = "Q2_K"
                 elif "q3_k_s" in name_lower: quant = "Q3_K_S"
@@ -1109,17 +1117,10 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
     drafter = None
     if mtp in ("auto", "on", "true", "1"):
         model_p = Path(path)
-        # Dedicated model-specific draft file named after the model: <model_stem>_draft.gguf
+        # Model-specific draft file named after the model: <model_stem>_draft.gguf
+        # Note: We enforce model-specific draft to prevent loading incompatible weights from other models
         model_specific_draft = model_p.parent / f"{model_p.stem}_draft.gguf"
-        legacy_draft = model_p.parent / "draft.gguf"
-
-        draft_file = None
-        if model_specific_draft.exists():
-            draft_file = model_specific_draft
-        elif legacy_draft.exists():
-            draft_file = legacy_draft
-        else:
-            draft_file = model_specific_draft
+        draft_file = model_specific_draft
 
         # Check if parent model has native MTP or speculative layers built in
         has_native_mtp = False
@@ -1162,20 +1163,41 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
 
     print(f"[Strata-MoEBoost] Loading model from {path} (RAM: {hw['ram_gib']}GB, VRAM: {hw['vram_gib']}GB)...")
     t0 = time.time()
-    state.llm = Llama(
-        model_path=path,
-        n_ctx=final_ctx,
-        n_gpu_layers=final_gpu_layers,
-        n_threads=final_threads,
-        n_threads_batch=final_threads,
-        n_batch=final_batch,
-        n_ubatch=final_batch,
-        offload_kqv=True,
-        use_mmap=True,
-        use_mlock=final_mlock,
-        draft_model=drafter,
-        verbose=False
-    )
+    try:
+        state.llm = Llama(
+            model_path=path,
+            n_ctx=final_ctx,
+            n_gpu_layers=final_gpu_layers,
+            n_threads=final_threads,
+            n_threads_batch=final_threads,
+            n_batch=final_batch,
+            n_ubatch=final_batch,
+            offload_kqv=True,
+            use_mmap=True,
+            use_mlock=final_mlock,
+            draft_model=drafter,
+            verbose=False
+        )
+    except Exception as e:
+        if drafter is not None:
+            print(f"[Strata-MoEBoost] Warning: Initial load with drafter failed ({e}). Retrying without drafter...")
+            drafter = None
+            state.llm = Llama(
+                model_path=path,
+                n_ctx=final_ctx,
+                n_gpu_layers=final_gpu_layers,
+                n_threads=final_threads,
+                n_threads_batch=final_threads,
+                n_batch=final_batch,
+                n_ubatch=final_batch,
+                offload_kqv=True,
+                use_mmap=True,
+                use_mlock=final_mlock,
+                draft_model=None,
+                verbose=False
+            )
+        else:
+            raise
     # Enable HotRod Conversation / Prefix Cache in RAM
     try:
         # Scale cache dynamically up to 2GB on systems with >16GB RAM for maximum prefix hit-rate
