@@ -960,7 +960,11 @@ async def v1_models():
 
 class ChatMessage(BaseModel):
     role: str
-    content: str
+    content: Any = ""
+    reasoning_content: str | None = None
+
+    class Config:
+        extra = "allow"
 
 class ChatCompletionRequest(BaseModel):
     model: str | None = None
@@ -969,13 +973,31 @@ class ChatCompletionRequest(BaseModel):
     temperature: float = 0.7
     top_p: float = 0.95
     stream: bool = False
+    seed: int | None = None
+    reasoning_effort: str | None = None
+
+    class Config:
+        extra = "allow"
+
+@app.post("/v1/prefill")
+async def warm_prefill(req: ChatCompletionRequest):
+    """Prefill warm draft endpoint so frontend typing doesn't 404."""
+    return {"status": "ok", "warmed": True}
 
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest):
     if state.llm is None:
         raise HTTPException(status_code=503, detail="Model is not loaded yet")
 
-    msgs = [{"role": m.role, "content": m.content} for m in req.messages]
+    # Format messages nicely: handle string content or structured content array
+    msgs = []
+    for m in req.messages:
+        content_val = m.content
+        if isinstance(content_val, list):
+            # Extract plain text from multi-modal content array if present
+            text_parts = [p.get("text", "") for p in content_val if isinstance(p, dict) and p.get("type") == "text"]
+            content_val = "\n".join(text_parts) if text_parts else str(content_val)
+        msgs.append({"role": m.role, "content": str(content_val)})
     max_tok = req.max_tokens or 512
     req_time = time.strftime("%H:%M:%S")
     state.stats["state"] = "generating"
