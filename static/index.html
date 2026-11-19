@@ -328,6 +328,14 @@
                 <option value="off">Off</option>
               </select>
             </div>
+            <div>
+              <label class="muted small" style="display:block; margin-bottom:2px;">Engine Mode:</label>
+              <select id="load-engine-mode" class="st-input" style="width:100%; padding:4px 8px; font-size:12px; background:#121824;">
+                <option value="auto">Auto Detect</option>
+                <option value="unpacked">⚡ Native Unpacked (Zero llama-cpp-python)</option>
+                <option value="llama">Standard GGUF Mode</option>
+              </select>
+            </div>
           </div>
           <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
             <input type="checkbox" id="load-low-spec" style="cursor:pointer;">
@@ -573,6 +581,7 @@
         const thInp = document.getElementById('load-threads');
         const bInp = document.getElementById('load-batch');
         const mtpInp = document.getElementById('load-mtp');
+        const engModeInp = document.getElementById('load-engine-mode');
         const lowSpecInp = document.getElementById('load-low-spec');
 
         const payload = {
@@ -581,6 +590,7 @@
           threads: thInp && thInp.value ? parseInt(thInp.value) : null,
           batch: bInp && bInp.value ? parseInt(bInp.value) : null,
           mtp: mtpInp ? mtpInp.value : 'auto',
+          engine_mode: engModeInp ? engModeInp.value : 'auto',
           low_spec: lowSpecInp ? lowSpecInp.checked : false
         };
 
