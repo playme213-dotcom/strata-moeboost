@@ -548,10 +548,25 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
     # Configure MTP (Multi-Token Prediction / Speculative Lookahead) Drafter
     drafter = None
     if mtp in ("auto", "on", "true", "1"):
+        # 1. First check if a dedicated draft.gguf exists
+        draft_file = Path(path).parent / "draft.gguf"
+        if not draft_file.exists():
+            draft_file = Path("/media/local-ai/Model/draft.gguf")
+
+        # 2. If model doesn't have native MTP and no draft.gguf, auto-generate draft.gguf
+        if not draft_file.exists():
+            print("[Strata-MoEBoost] MTP not native: Auto-generating standalone draft.gguf...")
+            try:
+                from make_draft_gguf import create_draft_model
+                create_draft_model(path, str(draft_file), max_layers=1)
+            except Exception as e:
+                print(f"[Strata-MoEBoost] Auto draft generation note: {e}")
+
+        # 3. Bind speculative drafter
         try:
             from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
             drafter = LlamaPromptLookupDecoding(max_ngram_size=2, num_pred_tokens=2)
-            print("[Strata-MoEBoost] MTP Auto-Engaged: Speculative Lookahead Drafter active.")
+            print(f"[Strata-MoEBoost] MTP Auto-Engaged (Drafter: draft.gguf={draft_file.exists()}, Speculative Pager Active).")
         except Exception as e:
             print(f"[Strata-MoEBoost] MTP Drafter notice: {e}")
 
