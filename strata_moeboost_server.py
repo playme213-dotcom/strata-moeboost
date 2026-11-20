@@ -716,6 +716,33 @@ DOWNLOAD_CATALOG = [
         "size_gb": 8.14
     },
     {
+        "id": "qwen35-35b-a3b-udiq3s",
+        "family": "Qwen 3.5 MoE Flagship",
+        "name": "Qwen3.5-35B-A3B UD-IQ3_S (Balanced Precision)",
+        "desc": "35B Total / 3B Active MoE | 12.6 GB | SOTA multilingual reasoning & coding with Unsloth Dynamic quant",
+        "url": "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-UD-IQ3_S.gguf",
+        "filename": "Qwen3.5-35B-A3B-UD-IQ3_S.gguf",
+        "size_gb": 12.65
+    },
+    {
+        "id": "qwen35-35b-a3b-udiq2xxs",
+        "family": "Qwen 3.5 MoE Flagship",
+        "name": "Qwen3.5-35B-A3B UD-IQ2_XXS (Turbo Low-RAM)",
+        "desc": "35B Total / 3B Active MoE | 9.9 GB | Fits easily on 16GB-24GB RAM PCs with 2GB-4GB VRAM",
+        "url": "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-UD-IQ2_XXS.gguf",
+        "filename": "Qwen3.5-35B-A3B-UD-IQ2_XXS.gguf",
+        "size_gb": 9.93
+    },
+    {
+        "id": "qwen35-35b-a3b-udiq4xs",
+        "family": "Qwen 3.5 MoE Flagship",
+        "name": "Qwen3.5-35B-A3B UD-IQ4_XS (High Quality)",
+        "desc": "35B Total / 3B Active MoE | 16.3 GB | Full 4-bit precision reasoning & agentic capability",
+        "url": "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-UD-IQ4_XS.gguf",
+        "filename": "Qwen3.5-35B-A3B-UD-IQ4_XS.gguf",
+        "size_gb": 16.29
+    },
+    {
         "id": "strata-flash-next-orig-bundle",
         "family": "Original Strata Flash-Next",
         "name": "Qwen3.8-Flash-Next IQ3_S (Full 2-Shard Bundle)",
