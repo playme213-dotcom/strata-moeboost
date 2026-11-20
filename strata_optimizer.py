@@ -101,9 +101,11 @@ def analyze_hardware():
     rec_mlock = ram_gib >= 15.0
 
     # 3. Context & Batch:
-    #    - Low-spec (RAM < 16GB or VRAM < 3GB): 128 batch, 1024 context
-    #    - Standard/High-spec: 256 batch, 2048 context
-    is_low_spec = ram_gib < 16.0 or vram_gib < 3.0
+    #    - Low-spec conditions:
+    #      * RAM < 16 GB OR
+    #      * VRAM <= 4.0 GB (e.g. GTX 1050 3GB, RX 550, GTX 1650 4GB)
+    #    - Standard/High-spec: RAM >= 32 GB AND VRAM >= 6 GB
+    is_low_spec = ram_gib < 16.0 or vram_gib <= 4.0
     rec_batch = 128 if is_low_spec else 256
     rec_ctx = 1024 if is_low_spec else 2048
     rec_cache_mb = 256 if is_low_spec else 1024

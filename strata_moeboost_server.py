@@ -1321,15 +1321,18 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
     hw = analyze_hardware()
     
     # Auto-calibrate if parameters are not explicitly forced
-    if low_spec:
-        # User explicitly requested ultra low-spec mode (fits 8GB-16GB RAM, 2GB VRAM cards / iGPUs)
-        final_gpu_layers = 2 if n_gpu_layers is None or n_gpu_layers > 2 else n_gpu_layers
+    effective_low_spec = low_spec or hw["is_low_spec"]
+    if effective_low_spec:
+        # Low-spec mode auto-detected or explicitly requested:
+        # Clamps batch size, context window, and prevents VRAM exhaustion
+        final_gpu_layers = 2 if n_gpu_layers is None else min(n_gpu_layers, hw["recommended_gpu_layers"])
         final_threads = hw["physical_cores"]
-        final_batch = 128
-        final_ctx = 1024
+        final_batch = 128 if n_batch is None else min(n_batch, 128)
+        final_ctx = 1024 if n_ctx is None else min(n_ctx, 1024)
         final_mlock = False
         cache_bytes = 256 * 1024 * 1024
-        print(f"[Strata-MoEBoost] Low-Spec PC Mode ENGAGED: layers={final_gpu_layers}, batch={final_batch}, ctx={final_ctx}, mlock={final_mlock}")
+        reason = "User specified --low-spec" if low_spec else f"Auto-detected hardware profile (RAM: {hw['ram_gib']}GB, VRAM: {hw['vram_gib']}GB)"
+        print(f"[Strata-MoEBoost] Low-Spec PC Mode ENGAGED ({reason}): layers={final_gpu_layers}, batch={final_batch}, ctx={final_ctx}, mlock={final_mlock}")
     else:
         final_gpu_layers = hw["recommended_gpu_layers"] if n_gpu_layers is None else n_gpu_layers
         final_threads = hw["recommended_threads"] if n_threads is None else n_threads
