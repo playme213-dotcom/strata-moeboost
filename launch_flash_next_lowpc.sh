@@ -5,8 +5,8 @@
 # ==============================================================================
 set -euo pipefail
 
-MODEL_SHARD1="${1:-/media/local-ai/Model/Qwen3.8-Flash-Next-GSQ-RCO-Coder-IQ1_M-00001-of-00002.gguf}"
-MODEL_SHARD2="${2:-/media/local-ai/Model/Qwen3.8-Flash-Next-GSQ-RCO-Coder-IQ1_M-00002-of-00002.gguf}"
+MODEL_SHARD1="${1:-/media/local-ai/Model/Qwen3.8-Flash-Next-GSQ-RCO-IQ1_M-00001-of-00002.gguf}"
+MODEL_SHARD2="${2:-/media/local-ai/Model/Qwen3.8-Flash-Next-GSQ-RCO-IQ1_M-00002-of-00002.gguf}"
 PORT="${3:-4133}"
 PACK_DIR="${4:-/home/local-ai/strata-moeboost/pack/flash_next_lowpc}"
 
