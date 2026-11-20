@@ -39,6 +39,12 @@ PROFILE_BIN="$PACK_DIR/profile.bin"
 # --mmap-experts: Keeps cold experts on SSD/RAM without full 58GB allocation
 # --pool-workers 4: Optimized for Ryzen 5 3550H CPU threads
 
+# Auto-adjust hardware plan based on live VRAM and RAM
+echo "Checking system VRAM and RAM for optimal plan (Target Headroom: 300MB VRAM)..."
+eval "$("$SCRIPT_DIR/tools/hardware_plan.py" 300 --bash)"
+echo "Selected Tier: $PLAN_TIER"
+echo "Plan Summary : $PLAN_SUMMARY"
+
 PLE_ARGS=()
 if [[ -f "$PLE_FILE" ]]; then
     echo "Found standalone PLE Table: $PLE_FILE. Enabling --ple-io direct NVMe stream."
@@ -56,10 +62,11 @@ exec "$BIN" \
     --native "$MODEL_FILE" \
     "${PLE_ARGS[@]}" \
     --mmap-experts \
-    --resident-budget-gib 6.0 \
+    --resident-budget-gib "$PLAN_RESIDENT_BUDGET" \
+    --vram-reserve-mib "$PLAN_VRAM_RESERVE" \
     --expert-profile "$PROFILE_BIN" \
-    --kv q4_0 \
-    --max-context 512 \
-    --prefill 16 \
+    --kv "$PLAN_KV_FORMAT" \
+    --max-context "$PLAN_MAX_CONTEXT" \
+    --prefill "$PLAN_PREFILL" \
     --pool-workers 4 \
     --port "$PORT"

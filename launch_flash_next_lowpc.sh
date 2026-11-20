@@ -66,17 +66,24 @@ fi
 export STRATA_FETCH_THREADS=4
 export STRATA_PAGECACHE_WARM_GIB=4
 
+# Auto-adjust hardware plan based on live VRAM and RAM
+echo "Checking system VRAM and RAM for optimal plan (Target Headroom: 300MB VRAM)..."
+eval "$("$SCRIPT_DIR/tools/hardware_plan.py" 300 --bash)"
+echo "Selected Tier: $PLAN_TIER"
+echo "Plan Summary : $PLAN_SUMMARY"
+
 echo "Launching native Strata engine with Low-PC profile..."
 exec "$BIN" \
     --pack "$PACK_DIR" \
     --native "$MODEL_SHARD1" \
     --ple-gguf "$MODEL_SHARD2" \
     --mmap-experts \
-    --resident-budget-gib 6.0 \
+    --resident-budget-gib "$PLAN_RESIDENT_BUDGET" \
+    --vram-reserve-mib "$PLAN_VRAM_RESERVE" \
     --expert-profile "$PROFILE_BIN" \
-    --kv q4_0 \
-    --max-context 512 \
-    --prefill 16 \
+    --kv "$PLAN_KV_FORMAT" \
+    --max-context "$PLAN_MAX_CONTEXT" \
+    --prefill "$PLAN_PREFILL" \
     --ple-io direct \
     --pool-workers 4 \
     --port "$PORT"
