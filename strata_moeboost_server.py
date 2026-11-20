@@ -797,19 +797,31 @@ DOWNLOAD_CATALOG = [
         "id": "cerebras-qwen3-coder-iq4xs",
         "family": "MoE Coding & Reasoning",
         "name": "Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS (Installed Default)",
-        "desc": "25B Total / 3B Active MoE | 12.5 GB | Flagship coding & reasoning engine",
+        "desc": "25B Total / 3B Active MoE | 12.5 GB | Flagship coding & reasoning engine (Tier 2 Optimized)",
         "url": "https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf",
         "filename": "cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf",
-        "size_gb": 12.52
+        "size_gb": 12.52,
+        "ple_mtp_info": "Tier 2 Optimized: GPU Prefill + 6GB RAM Expert Generation + MTP Draft Head"
     },
     {
         "id": "cerebras-qwen3-coder-q2k",
         "family": "MoE Coding & Reasoning",
         "name": "Cerebras Qwen3-Coder-REAP-25B-A3B Q2_K (Turbo Fast)",
-        "desc": "25B Total / 3B Active MoE | ~8.1 GB | High speed for 2GB-4GB VRAM low-spec PCs",
+        "desc": "25B Total / 3B Active MoE | ~8.1 GB | Ultra-fast execution for low-spec PCs",
         "url": "https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf",
         "filename": "cerebras_Qwen3-Coder-REAP-25B-A3B-Q2_K.gguf",
-        "size_gb": 8.14
+        "size_gb": 8.14,
+        "ple_mtp_info": "Tier 2 Ultra-Low: 100% of experts fit into RAM cache with zero SSD paging"
+    },
+    {
+        "id": "qwen35-35b-a3b-udiq2xxs",
+        "family": "Qwen 3.5 MoE Flagship",
+        "name": "Qwen3.5-35B-A3B UD-IQ2_XXS (Turbo Low-RAM)",
+        "desc": "35B Total / 3B Active MoE | 9.9 GB | Fits easily on 16GB-24GB RAM PCs with 3GB VRAM",
+        "url": "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-UD-IQ2_XXS.gguf",
+        "filename": "Qwen3.5-35B-A3B-UD-IQ2_XXS.gguf",
+        "size_gb": 9.93,
+        "ple_mtp_info": "Tier 2 Compatible: GPU Prefill + 6GB RAM Expert Cache"
     },
     {
         "id": "qwen35-35b-a3b-udiq3s",
@@ -818,16 +830,8 @@ DOWNLOAD_CATALOG = [
         "desc": "35B Total / 3B Active MoE | 12.6 GB | SOTA multilingual reasoning & coding with Unsloth Dynamic quant",
         "url": "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-UD-IQ3_S.gguf",
         "filename": "Qwen3.5-35B-A3B-UD-IQ3_S.gguf",
-        "size_gb": 12.65
-    },
-    {
-        "id": "qwen35-35b-a3b-udiq2xxs",
-        "family": "Qwen 3.5 MoE Flagship",
-        "name": "Qwen3.5-35B-A3B UD-IQ2_XXS (Turbo Low-RAM)",
-        "desc": "35B Total / 3B Active MoE | 9.9 GB | Fits easily on 16GB-24GB RAM PCs with 2GB-4GB VRAM",
-        "url": "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-UD-IQ2_XXS.gguf",
-        "filename": "Qwen3.5-35B-A3B-UD-IQ2_XXS.gguf",
-        "size_gb": 9.93
+        "size_gb": 12.65,
+        "ple_mtp_info": "Tier 2 Compatible: GPU Prefill + 6GB RAM Expert Cache + Direct NVMe Streaming"
     },
     {
         "id": "qwen35-35b-a3b-udiq4xs",
