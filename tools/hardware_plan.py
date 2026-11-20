@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Hardware Plan Optimizer for Strata-MoEBoost.
+"""Multi-Tier Hardware Plan Optimizer for Strata-MoEBoost.
 Inspects system VRAM and RAM, calculates safe headroom (default 300 MiB VRAM headroom),
-and determines the optimal execution tiering plan:
-  - Dense in VRAM vs mapped host memory
-  - KV cache format & context length
-  - Resident RAM expert budget
-  - Hot expert slots in VRAM
-  - Direct NVMe streaming for PLE and cold experts
+and automatically selects the optimal execution plan across diverse hardware setups:
+  - Tier 1: Ultra-Low Spec (<= 2 GB VRAM or <= 12 GB RAM)
+  - Tier 2: Low-Spec Preferred (GTX 1050 / 3 GB - 4 GB VRAM + 16-24 GB RAM)
+  - Tier 3: Mid-Spec Balanced (6 GB - 8 GB VRAM, RTX 2060/3060/4060 + 32 GB RAM)
+  - Tier 4: High-Spec Extended (12 GB - 16 GB VRAM, RTX 3080/4070/4080 + 32-64 GB RAM)
+  - Tier 5: Frontier Pro / Workstation (24 GB - 48 GB+ VRAM, RTX 3090/4090 / A6000)
 """
 import os
 import sys
@@ -48,13 +48,14 @@ def probe_hardware():
 
     return vram_total_mb, vram_free_mb, ram_total_mb, ram_avail_mb
 
-def compute_plan(vram_headroom_mb: int = 300):
+def compute_plan(vram_headroom_mb: int = 300, override_vram_mb: int | None = None, override_ram_mb: int | None = None):
     vram_tot, vram_free, ram_tot, ram_avail = probe_hardware()
-    
-    # Defaults for low-spec reference (e.g. GTX 1050 3GB / 22GB RAM)
-    dense_mb = 1350        # dense.bin + Q/K/V/O, norms, shared expert
-    kv_q4_512_mb = 350     # KV cache q4_0 at 512 context
-    usable_vram = max(0, vram_free - vram_headroom_mb)
+    if override_vram_mb is not None:
+        vram_tot = override_vram_mb
+        vram_free = override_vram_mb
+    if override_ram_mb is not None:
+        ram_tot = override_ram_mb
+        ram_avail = override_ram_mb
 
     plan = {
         "vram_total_mb": vram_tot,
@@ -62,65 +63,129 @@ def compute_plan(vram_headroom_mb: int = 300):
         "vram_headroom_mb": vram_headroom_mb,
         "ram_total_mb": ram_tot,
         "ram_avail_mb": ram_avail,
-        "tier": "low_spec_preferred",
+        "tier": "",
+        "tier_name": "",
         "dense_in_vram": True,
         "kv_format": "q4_0",
         "max_context": 512,
         "prefill": 16,
-        "resident_budget_gib": 6.0,
+        "resident_budget_gib": "6.0",
         "ple_io": "direct",
         "mmap_experts": True,
         "vram_reserve_mb": vram_headroom_mb,
+        "expert_cache_slots": "auto",
         "summary": ""
     }
 
-    # Decide VRAM & RAM tiering
-    if vram_tot <= 4096:
-        # Low-spec preferred plan (GTX 1050 / GTX 1650 3GB-4GB)
+    # =========================================================================
+    # Tier 1: Ultra-Low Spec (<= 2 GB VRAM or <= 12 GB RAM)
+    # =========================================================================
+    if vram_tot <= 2048 or ram_tot <= 12288:
+        plan["tier"] = "ultra_low"
+        plan["tier_name"] = "Tier 1: Ultra-Low Spec (2GB VRAM / <=12GB RAM)"
+        plan["dense_in_vram"] = False       # Dense mapped in host RAM to avoid OOM
+        plan["kv_format"] = "q4_0"
+        plan["max_context"] = 256
+        plan["prefill"] = 8
+        plan["resident_budget_gib"] = "2.0" # Minimal RAM footprint
+        plan["expert_cache_slots"] = "0"
+        plan["vram_reserve_mb"] = max(150, vram_headroom_mb)
+        plan["summary"] = "Ultra-Low Spec: Host-mapped dense, 2GB expert RAM, 256 ctx, pure NVMe streaming"
+
+    # =========================================================================
+    # Tier 2: Low-Spec Preferred (GTX 1050/1650 3GB-4GB VRAM + 16-24GB RAM)
+    # =========================================================================
+    elif vram_tot <= 4096:
         plan["tier"] = "low_spec_preferred"
-        plan["dense_in_vram"] = True
+        plan["tier_name"] = "Tier 2: Low-Spec Preferred (3GB-4GB VRAM + 16-24GB RAM)"
+        plan["dense_in_vram"] = True        # Dense in VRAM (~1.3 GB)
         plan["kv_format"] = "q4_0"
         plan["max_context"] = 512
         plan["prefill"] = 16
+        plan["resident_budget_gib"] = "6.0" if ram_tot >= 20000 else "4.0"
+        plan["expert_cache_slots"] = "auto"
         plan["vram_reserve_mb"] = vram_headroom_mb
-        # Expert RAM Budget: keep ~6.0 GB in RAM if system has >= 16 GB RAM, else 4.0 GB
-        if ram_tot >= 20000:
-            plan["resident_budget_gib"] = 6.0
-        elif ram_tot >= 14000:
-            plan["resident_budget_gib"] = 4.0
-        else:
-            plan["resident_budget_gib"] = 2.0
-        plan["summary"] = f"Low-Spec Optimal Plan (VRAM: Dense+KV in 3GB with {vram_headroom_mb}MB headroom, RAM: {plan['resident_budget_gib']}GB expert cache, NVMe: PLE & cold experts direct stream)"
+        plan["summary"] = f"Low-Spec Preferred: Dense in VRAM, KV q4_0 (512 ctx), {plan['resident_budget_gib']}GB expert RAM, {vram_headroom_mb}MB VRAM headroom"
+
+    # =========================================================================
+    # Tier 3: Mid-Spec Balanced (6GB-8GB VRAM, RTX 2060/3060/4060 + 24-32GB RAM)
+    # =========================================================================
     elif vram_tot <= 8192:
-        # Mid-tier GPU (6GB-8GB VRAM)
         plan["tier"] = "mid_spec"
+        plan["tier_name"] = "Tier 3: Mid-Spec Balanced (6GB-8GB VRAM + 32GB RAM)"
         plan["dense_in_vram"] = True
         plan["kv_format"] = "q4_0"
         plan["max_context"] = 2048
         plan["prefill"] = 32
+        plan["resident_budget_gib"] = "10.0" if ram_tot >= 28000 else "6.0"
+        plan["expert_cache_slots"] = "auto"
         plan["vram_reserve_mb"] = vram_headroom_mb
-        plan["resident_budget_gib"] = 8.0 if ram_tot >= 20000 else 4.0
-        plan["summary"] = f"Mid-Spec Plan (VRAM: Dense + KV 2048 + Hot Experts, RAM: {plan['resident_budget_gib']}GB expert cache)"
-    else:
-        # High-tier GPU (12GB+ VRAM)
+        plan["summary"] = f"Mid-Spec Balanced: Dense + ~1,200 Hot Experts in VRAM, 2048 ctx, {plan['resident_budget_gib']}GB expert RAM"
+
+    # =========================================================================
+    # Tier 4: High-Spec Extended (12GB-16GB VRAM, RTX 4070/3080/4080 + 32-64GB RAM)
+    # =========================================================================
+    elif vram_tot <= 16384:
         plan["tier"] = "high_spec"
+        plan["tier_name"] = "Tier 4: High-Spec Extended (12GB-16GB VRAM + 32-64GB RAM)"
+        plan["dense_in_vram"] = True
+        plan["kv_format"] = "k8v4"          # Exact INT8 K + rotated Q4_0 V
+        plan["max_context"] = 8192
+        plan["prefill"] = 64
+        plan["resident_budget_gib"] = "16.0" if ram_tot >= 48000 else "10.0"
+        plan["expert_cache_slots"] = "auto"
+        plan["vram_reserve_mb"] = vram_headroom_mb
+        plan["summary"] = f"High-Spec Extended: Dense + ~4,000 Hot Experts in VRAM, 8192 ctx (k8v4), {plan['resident_budget_gib']}GB expert RAM"
+
+    # =========================================================================
+    # Tier 5: Frontier Pro / Workstation (24GB - 48GB+ VRAM, RTX 3090/4090 / A6000)
+    # =========================================================================
+    else:
+        plan["tier"] = "frontier_pro"
+        plan["tier_name"] = "Tier 5: Frontier Pro / Full GPU Residency (24GB-48GB+ VRAM)"
         plan["dense_in_vram"] = True
         plan["kv_format"] = "int8"
-        plan["max_context"] = 4096
-        plan["prefill"] = 64
+        plan["max_context"] = 16384
+        plan["prefill"] = 128
+        plan["resident_budget_gib"] = "auto"
+        plan["expert_cache_slots"] = "auto"
         plan["vram_reserve_mb"] = vram_headroom_mb
-        plan["resident_budget_gib"] = 12.0
-        plan["summary"] = "High-Spec Plan (Maximum VRAM expert residency & INT8 KV)"
+        plan["summary"] = "Frontier Pro: Full Model / Maximum Experts resident on GPU VRAM, 16k ctx, MTP draft active"
 
     return plan
 
+def simulate_all_tiers():
+    scenarios = [
+        ("Tier 1 (Ultra-Low)", 2048, 8192),
+        ("Tier 2 (Low-Spec Preferred - Your Setup)", 3072, 23458),
+        ("Tier 2 (Alternative Low 4GB/16GB)", 4096, 16384),
+        ("Tier 3 (Mid-Spec 6GB/24GB)", 6144, 24576),
+        ("Tier 3 (Mid-Spec 8GB/32GB)", 8192, 32768),
+        ("Tier 4 (High-Spec 12GB/32GB)", 12288, 32768),
+        ("Tier 4 (High-Spec 16GB/64GB)", 16384, 65536),
+        ("Tier 5 (Frontier 24GB RTX 4090)", 24576, 65536)
+    ]
+    print("=" * 88)
+    print(f"{'Hardware Setup':<35} | {'VRAM / Headroom':<15} | {'RAM Budget':<10} | {'Context':<8} | {'KV':<6}")
+    print("=" * 88)
+    for name, vram, ram in scenarios:
+        p = compute_plan(300, override_vram_mb=vram, override_ram_mb=ram)
+        vram_info = f"{vram}MB (-300MB)"
+        print(f"{name:<35} | {vram_info:<15} | {str(p['resident_budget_gib']) + ' GiB':<10} | {p['max_context']:<8} | {p['kv_format']:<6}")
+    print("=" * 88)
+
 if __name__ == "__main__":
-    headroom = int(sys.argv[1]) if len(sys.argv) > 1 else 300
+    headroom = int(sys.argv[1]) if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else 300
+    if "--simulate" in sys.argv or "--tiers" in sys.argv:
+        simulate_all_tiers()
+        sys.exit(0)
+
     p = compute_plan(headroom)
     if "--json" in sys.argv:
         print(json.dumps(p, indent=2))
     elif "--bash" in sys.argv:
         print(f"PLAN_TIER='{p['tier']}'")
+        print(f"PLAN_TIER_NAME='{p['tier_name']}'")
         print(f"PLAN_DENSE_VRAM={'1' if p['dense_in_vram'] else '0'}")
         print(f"PLAN_KV_FORMAT='{p['kv_format']}'")
         print(f"PLAN_MAX_CONTEXT={p['max_context']}")
@@ -133,7 +198,7 @@ if __name__ == "__main__":
         print(f"Detected GPU VRAM   : {p['vram_total_mb']} MB (Free: {p['vram_free_mb']} MB)")
         print(f"Detected Host RAM   : {p['ram_total_mb']} MB (Avail: {p['ram_avail_mb']} MB)")
         print(f"Target VRAM Headroom: {p['vram_headroom_mb']} MB")
-        print(f"Selected Plan Tier  : {p['tier']}")
+        print(f"Selected Plan       : {p['tier_name']}")
         print(f"Expert RAM Budget   : {p['resident_budget_gib']} GiB")
         print(f"KV Cache Format     : {p['kv_format']} (Max Context: {p['max_context']})")
         print(f"NVMe PLE Streaming  : {p['ple_io']}")
