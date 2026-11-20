@@ -757,6 +757,16 @@ DOWNLOAD_CATALOG = [
         "is_default": True
     },
     {
+        "id": "qwen38-flash-next-ple-iq4nl",
+        "family": "Official Flash-Next Gyro (Default)",
+        "name": "Qwen3.8-Flash-Next PLE Table (Decoupled NVMe Stream)",
+        "desc": "26.8 GB Standalone N-Gram Lookahead Table | Streams via --ple-io direct with 0 RAM footprint",
+        "url": "https://huggingface.co/Delgon/Qwen3.8-Flash-Next-PLE-GGUF/resolve/main/Qwen3.8-Flash-Next-PLE-IQ4_NL.gguf",
+        "filename": "Qwen3.8-Flash-Next-PLE-IQ4_NL.gguf",
+        "size_gb": 26.82,
+        "is_default": False
+    },
+    {
         "id": "cerebras-qwen3-coder-iq4xs",
         "family": "MoE Coding & Reasoning",
         "name": "Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS (Installed Default)",
