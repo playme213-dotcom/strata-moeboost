@@ -53,10 +53,30 @@ bool NativeHead::load(const std::vector<std::string>& shards, int64_t n_in, int6
         void* weights = nullptr;
         void* scratch = nullptr;
         cudaError_t status = cudaMalloc(&weights, bytes);
-        if (status == cudaSuccess)
+        bool is_host_mapped = false;
+        if (status != cudaSuccess) {
+            cudaGetLastError();
+            void* h_weights = nullptr;
+            if (cudaHostAlloc(&h_weights, bytes, cudaHostAllocMapped | cudaHostAllocPortable) == cudaSuccess &&
+                cudaHostGetDevicePointer(&weights, h_weights, 0) == cudaSuccess) {
+                std::memcpy(h_weights, gguf.tensor_data(*tensor), bytes);
+                status = cudaSuccess;
+                is_host_mapped = true;
+            }
+        }
+        if (status == cudaSuccess) {
             status = cudaMalloc(&scratch, strata::kernels::native_q8_1_bytes((int) n_in, 1));
+            if (status != cudaSuccess) {
+                cudaGetLastError();
+                void* h_scratch = nullptr;
+                if (cudaHostAlloc(&h_scratch, strata::kernels::native_q8_1_bytes((int) n_in, 1), cudaHostAllocMapped | cudaHostAllocPortable) == cudaSuccess &&
+                    cudaHostGetDevicePointer(&scratch, h_scratch, 0) == cudaSuccess) {
+                    status = cudaSuccess;
+                }
+            }
+        }
         strata::platform::advise_willneed(gguf.tensor_data(*tensor), bytes);
-        if (status == cudaSuccess)
+        if (status == cudaSuccess && !is_host_mapped)
             status = cudaMemcpy(weights, gguf.tensor_data(*tensor), bytes, cudaMemcpyHostToDevice);
         if (status != cudaSuccess) {
             if (scratch) cudaFree(scratch);

@@ -582,9 +582,14 @@ Gemm::~Gemm() {
 
 bool Gemm::init_external(void* stream, uint16_t* scratch, int64_t scratch_elems, void* workspace, size_t ws_bytes,
                          std::string& err) {
+    cudaGetLastError(); // clear any stale CUDA error state before cublasCreate
+    size_t free_b = 0, total_b = 0;
+    cudaMemGetInfo(&free_b, &total_b);
     cublasHandle_t h = nullptr;
-    if (const cublasStatus_t s = cublasCreate(&h); s != CUBLAS_STATUS_SUCCESS) {
-        err = "prefill gemm: cublasCreate: cuBLAS status " + std::to_string((int) s);
+    const cublasStatus_t s = cublasCreate(&h);
+    if (s != CUBLAS_STATUS_SUCCESS) {
+        err = "prefill gemm: cublasCreate: cuBLAS status " + std::to_string((int) s) + 
+              " (VRAM free: " + std::to_string(free_b >> 20) + " MiB / " + std::to_string(total_b >> 20) + " MiB)";
         return false;
     }
     handle_ = h;

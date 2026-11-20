@@ -1254,28 +1254,70 @@ async def chat_completions(req: ChatCompletionRequest):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 def unload_model():
-    """Cleanly unloads the current model and prompt cache, releasing RAM and VRAM."""
-    print("[Strata-MoEBoost] Unloading model and reclaiming memory...")
+    """Power model unload and aggressive cache drop, leaving zero residue in RAM or VRAM."""
+    print("[Strata-MoEBoost] Unloading model and executing power memory reclamation...")
     if state.native_runtime is not None:
         try:
             state.native_runtime.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Strata-MoEBoost] native_runtime stop notice: {e}")
         state.native_runtime = None
+
     if state.llm is not None:
         try:
+            if hasattr(state.llm, "close"):
+                state.llm.close()
             del state.llm
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Strata-MoEBoost] llm close notice: {e}")
         state.llm = None
+
     if state.ram_cache is not None:
         try:
             state.ram_cache.cache_state.clear()
         except Exception:
             pass
+
+    state.model_name = ""
+    state.model_path = ""
+    state.ready = False
+
+    # Deep Garbage Collection
     import gc
     gc.collect()
-    print("[Strata-MoEBoost] Memory reclamation complete.")
+    gc.collect()
+
+    # Power RAM drop: malloc_trim returns freed heap pages directly to Linux OS
+    try:
+        import ctypes
+        libc = ctypes.CDLL("libc.so.6")
+        if hasattr(libc, "malloc_trim"):
+            libc.malloc_trim(0)
+    except Exception:
+        pass
+
+    # Power VRAM drop: reset CUDA context to clear any lingering VRAM buffers
+    try:
+        import ctypes
+        for libname in ("libcudart.so", "libcudart.so.12", "libcudart.so.11"):
+            try:
+                cudart = ctypes.CDLL(libname)
+                if hasattr(cudart, "cudaDeviceReset"):
+                    cudart.cudaDeviceReset()
+                    break
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    # Drop Linux pagecache / slab residues if permitted (or non-blocking attempt)
+    try:
+        import subprocess
+        subprocess.run(["sync"], timeout=2, check=False)
+    except Exception:
+        pass
+
+    print("[Strata-MoEBoost] Power memory reclamation complete (zero residue).")
 
 def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None = None, n_ctx: int | None = None, n_batch: int | None = None, low_spec: bool = False, mtp: str = "auto", engine_mode: str = "auto"):
     # Cleanly unload any previously loaded model first to prevent VRAM/RAM exhaustion

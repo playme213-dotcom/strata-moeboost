@@ -349,10 +349,33 @@ bool NativeDense::load(const std::vector<std::string>& shards, WeightTable& tabl
                 }
                 const auto bytes = strata::kernels::native_mmvq_weight_bytes(
                     tensor.type, (int) ref.ne0, (int) ref.ne1);
+                // On low-VRAM GPUs (<= 4GB), allocate ALL native dense weights directly into zero-copy mapped host memory
+                // to preserve all precious VRAM for prefill GEMMs, cuBLAS contexts, and KV activations.
                 void* allocation = nullptr;
-                auto status = cudaMalloc(&allocation, bytes);
+                bool is_host_mapped = false;
+                static const bool prefer_host_mapped = []() {
+                    size_t fb = 0, tb = 0;
+                    if (cudaMemGetInfo(&fb, &tb) == cudaSuccess) {
+                        return (tb <= (4ull << 30)); // 4GB or smaller GPU (e.g. GTX 1050 3GB)
+                    }
+                    return false;
+                }();
+                cudaError_t status = cudaErrorMemoryAllocation;
+                if (!prefer_host_mapped) {
+                    status = cudaMalloc(&allocation, bytes);
+                }
+                if (status != cudaSuccess) {
+                    cudaGetLastError(); // clear error
+                    void* h_alloc = nullptr;
+                    if (cudaHostAlloc(&h_alloc, bytes, cudaHostAllocMapped | cudaHostAllocPortable) == cudaSuccess &&
+                        cudaHostGetDevicePointer(&allocation, h_alloc, 0) == cudaSuccess) {
+                        std::memcpy(h_alloc, gguf.tensor_data(tensor), bytes);
+                        status = cudaSuccess;
+                        is_host_mapped = true;
+                    }
+                }
                 DevicePtr data(allocation);
-                if (status == cudaSuccess)
+                if (status == cudaSuccess && !is_host_mapped)
                     status = cudaMemcpy(data.get(), gguf.tensor_data(tensor), bytes, cudaMemcpyHostToDevice);
                 if (status != cudaSuccess) {
                     err = "native dense upload " + tensor.name + ": " + cudaGetErrorString(status); return false;

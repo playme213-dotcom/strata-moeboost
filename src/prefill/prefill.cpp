@@ -545,9 +545,31 @@ struct Alloc {
             used += bytes;
             return p;
         }
-        if (base != nullptr && !spill) { ok = false; failed_bytes = bytes; return nullptr; }
+        if (base != nullptr && !spill) {
+            // Low-VRAM fallback: spill to mapped zero-copy host memory if VRAM borrow budget is absent or exhausted
+            void* p_host = nullptr;
+            void* p_dev = nullptr;
+            if (cudaHostAlloc(&p_host, bytes, cudaHostAllocMapped | cudaHostAllocPortable) == cudaSuccess &&
+                cudaHostGetDevicePointer(&p_dev, p_host, 0) == cudaSuccess) {
+                owned->push_back(p_host);
+                used += bytes;
+                return (T*) p_dev;
+            }
+            ok = false; failed_bytes = bytes; return nullptr;
+        }
         void* p = nullptr;
-        if (cudaMalloc(&p, bytes) != cudaSuccess) { ok = false; failed_bytes = bytes; return nullptr; }
+        if (cudaMalloc(&p, bytes) != cudaSuccess) {
+            cudaGetLastError();
+            void* p_host = nullptr;
+            if (cudaHostAlloc(&p_host, bytes, cudaHostAllocMapped | cudaHostAllocPortable) == cudaSuccess &&
+                cudaHostGetDevicePointer(&p, p_host, 0) == cudaSuccess) {
+                spilled = true;
+                owned->push_back(p_host);
+                used += bytes;
+                return (T*) p;
+            }
+            ok = false; failed_bytes = bytes; return nullptr;
+        }
         spilled = true;
         owned->push_back(p);
         used += bytes;

@@ -40,10 +40,22 @@ else
     echo "Pack directory $PACK_DIR already prepared."
 fi
 
-# Step 2: Configure Low-PC Engine Parameters
+# Step 2: Ensure 256-expert profile exists for Flash-Next
+PROFILE_BIN="$PACK_DIR/profile.bin"
+if [[ ! -f "$PROFILE_BIN" ]]; then
+    echo "Generating Flash-Next 256-expert profile ($PROFILE_BIN)..."
+    "$SCRIPT_DIR/.venv/bin/python" "$SCRIPT_DIR/tools/make_profile.py" \
+        --no-base \
+        --n-expert 256 \
+        --out "$PROFILE_BIN"
+fi
+
+# Step 3: Configure Low-PC Engine Parameters
 # - --mmap-experts: avoids 34-77 GB RAM pre-allocation, reading on demand
-# - --resident-budget-gib 10: keeps top active experts in host RAM (capped safely at 10 GiB out of 24 GB RAM)
-# - --kv k8v4 or q4_0: cuts KV cache memory consumption by 50%
+# - --expert-profile: pre-ranks experts for device residency without requiring whole-model pre-allocation
+# - --kv q4_0: cuts KV cache memory consumption by 50%
+# - --max-context 512: safely bounds context size to prevent VRAM spikes
+# - --prefill 16: chunked prefill for smooth memory consumption
 # - --ple-io direct: unbuffered NVMe reads for the 28 GB PLE table, skipping OS page cache pollution
 # - --pool-workers 4: matches physical core count (e.g. 4 cores / 8 threads)
 
@@ -56,8 +68,10 @@ exec "$BIN" \
     --native "$MODEL_SHARD1" \
     --ple-gguf "$MODEL_SHARD2" \
     --mmap-experts \
-    --resident-budget-gib 10 \
+    --expert-profile "$PROFILE_BIN" \
     --kv q4_0 \
+    --max-context 512 \
+    --prefill 16 \
     --ple-io direct \
     --pool-workers 4 \
     --port "$PORT"

@@ -5458,9 +5458,17 @@ int main(int argc, char** argv) {
             strata::core::qsa_set_kv_elastic(on, iv != nullptr && std::atoll(iv) > 0 ? std::atoll(iv) : 16384);
             strata::core::ExpertCache::set_vmm(on);
         }
-        if (cudaMalloc(&sbuf, strata::core::session_bytes(g, o.max_context, K, 0, hi0)) != cudaSuccess) {
-            std::fprintf(stderr, "strata generate: session state allocation failed\n");
-            return 1;
+        size_t s_bytes = strata::core::session_bytes(g, o.max_context, K, 0, hi0);
+        if (cudaMalloc(&sbuf, s_bytes) != cudaSuccess) {
+            cudaGetLastError(); // clear error
+            void* h_sbuf = nullptr;
+            if (cudaHostAlloc(&h_sbuf, s_bytes, cudaHostAllocMapped | cudaHostAllocPortable) == cudaSuccess &&
+                cudaHostGetDevicePointer(&sbuf, h_sbuf, 0) == cudaSuccess) {
+                std::fprintf(stderr, "strata generate: session state allocated in mapped zero-copy host memory (%.1f MiB)\n", s_bytes / 1048576.0);
+            } else {
+                std::fprintf(stderr, "strata generate: session state allocation failed (%.1f MiB requested)\n", s_bytes / 1048576.0);
+                return 1;
+            }
         }
         if (strata::core::session_init(g, o.max_context, K, sbuf, ss, 0, hi0) == 0) {
             std::fprintf(stderr, "strata generate: session_init failed\n");
@@ -5757,8 +5765,14 @@ int main(int argc, char** argv) {
     float* d_logits = nullptr;
     if (cudaMalloc(&d_logits, (size_t) n_vocab * 4) != cudaSuccess) {
         (void) cudaGetLastError();
-        std::fprintf(stderr, "strata generate: the logits buffer failed%s\n", vram_free_note().c_str());
-        return 1;
+        void* h_logits = nullptr;
+        if (cudaHostAlloc(&h_logits, (size_t) n_vocab * 4, cudaHostAllocMapped | cudaHostAllocPortable) == cudaSuccess &&
+            cudaHostGetDevicePointer(&d_logits, h_logits, 0) == cudaSuccess) {
+            std::fprintf(stderr, "strata generate: logits buffer allocated in mapped zero-copy host memory (%.1f MiB)\n", ((size_t) n_vocab * 4) / 1048576.0);
+        } else {
+            std::fprintf(stderr, "strata generate: the logits buffer failed%s\n", vram_free_note().c_str());
+            return 1;
+        }
     }
     bool prefill_head_alias_bound = false;
     const void* prefill_head_alias_at = nullptr;   // where the head came back the first time
