@@ -76,6 +76,7 @@ class UnpackedMoELoader:
     """
     def __init__(self,
                  gguf_path: str,
+                 shard2_path: str | None = None,
                  pack_dir: str | None = None,
                  resident_budget_gib: float = 10.0,
                  use_pager: bool = True):
@@ -83,6 +84,7 @@ class UnpackedMoELoader:
         if not self.gguf_path.exists():
             raise FileNotFoundError(f"Model file not found: {gguf_path}")
 
+        self.shard2_path = Path(shard2_path) if shard2_path else None
         self.pack_dir = Path(pack_dir or (ROOT / "pack" / self.gguf_path.stem))
         self.resident_budget_gib = resident_budget_gib
         self.use_pager = use_pager

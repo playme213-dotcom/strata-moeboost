@@ -452,6 +452,12 @@ async def list_models_api(ssd_only: bool = True, moe_only: bool = True):
                 if name_lower == "draft.gguf" or "-draft" in name_lower or "_draft" in name_lower:
                     continue
 
+                # Filter 2b: Fragment / Multi-shard deduplication (e.g. shard 2 of 2)
+                # Strata / Flash-Next models ship in 2 fragments (shard 1 = dense + routed experts, shard 2 = PLE table).
+                # Only show Shard 1 as the primary loadable bundle; Shard 2 is auto-paired as the PLE table.
+                if "-00002-of-00002" in name_lower:
+                    continue
+
                 # Filter 3: Anti-duplicate model name check
                 if f.name in seen_names:
                     continue
@@ -484,16 +490,28 @@ async def list_models_api(ssd_only: bool = True, moe_only: bool = True):
                 elif "q4_k_m" in name_lower: quant = "Q4_K_M"
                 elif "q5_k_m" in name_lower: quant = "Q5_K_M"
                 elif "q8_0" in name_lower: quant = "Q8_0"
+                elif "iq1_m" in name_lower: quant = "IQ1_M"
+
+                # Check if multi-fragment Flash-Next model
+                display_name = f.name
+                total_size = size_gb
+                if "-00001-of-00002" in name_lower:
+                    shard2 = f_real.parent / f.name.replace("-00001-of-00002", "-00002-of-00002")
+                    if shard2.exists():
+                        shard2_gb = round(shard2.stat().st_size / (1024**3), 2)
+                        total_size = round(size_gb + shard2_gb, 1)
+                        display_name = f.name.replace("-00001-of-00002.gguf", " (2-Shard Bundle)")
 
                 # Check MTP status: native MTP or external model draft
                 model_specific_draft = f_real.parent / f"{f_real.stem}_draft.gguf"
                 legacy_draft = f_real.parent / "draft.gguf"
-                mtp_supported = model_specific_draft.exists() or legacy_draft.exists() or "cerebras" in name_lower or "qwen" in name_lower
+                mtp_supported = model_specific_draft.exists() or legacy_draft.exists() or "cerebras" in name_lower or "qwen" in name_lower or "flash" in name_lower
 
                 models.append({
-                    "name": f.name,
+                    "name": display_name,
+                    "filename": f.name,
                     "path": str(f),
-                    "size_gb": size_gb,
+                    "size_gb": total_size,
                     "architecture": arch,
                     "is_moe": True,
                     "quant": quant,
@@ -1183,13 +1201,28 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
 
     # Check for Native Strata-HotRod Unpacked Engine execution
     model_p = Path(path)
+    # If user selected Shard 2 by accident, automatically resolve to primary Shard 1
+    if "-00002-of-00002.gguf" in model_p.name:
+        candidate_shard1 = model_p.parent / model_p.name.replace("-00002-of-00002.gguf", "-00001-of-00002.gguf")
+        if candidate_shard1.exists():
+            model_p = candidate_shard1
+            path = str(candidate_shard1)
+
     use_native_unpack = (engine_mode in ("strata_unpacked", "unpacked")) or (engine_mode == "auto" and ("flash-next" in model_p.name.lower() or "unpacked" in model_p.name.lower()))
 
     if use_native_unpack:
         try:
             print(f"[Strata-MoEBoost] Launching Universal Unpacked Loader for {model_p.name} (Zero llama-cpp-python)...")
             from strata_unpacked_loader import UnpackedMoELoader
-            state.llm = UnpackedMoELoader(gguf_path=str(model_p), use_pager=True)
+            # Check for paired PLE fragment (Shard 2)
+            shard2_candidate = None
+            if "-00001-of-00002" in model_p.name:
+                s2 = model_p.parent / model_p.name.replace("-00001-of-00002", "-00002-of-00002")
+                if s2.exists():
+                    shard2_candidate = str(s2)
+                    print(f"[Strata-MoEBoost] Paired PLE fragment attached: {s2.name}")
+
+            state.llm = UnpackedMoELoader(gguf_path=str(model_p), shard2_path=shard2_candidate, use_pager=True)
             state.engine_mode = "strata_unpacked"
             state.model_path = path
             state.model_name = model_p.stem
