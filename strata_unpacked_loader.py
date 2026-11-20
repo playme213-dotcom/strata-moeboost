@@ -130,21 +130,29 @@ class UnpackedMoELoader:
 
         print(f"[UnpackedLoader] Architecture '{self.arch}' loaded with available native features: {', '.join(self.native_features)}")
 
-        # Step 6: Initialize active generative backend
+        # Step 6: Initialize active generative backend safely
+        # Note: Flash-Next (54.4 GB 2-shard IQ1_M) exceeds 24GB physical RAM.
+        # Direct llama_cpp initialization on 54GB models without custom multi-tier paging
+        # causes intense page trashing, swap thrashing, and OS freeze/timeout.
         try:
             from llama_cpp import Llama
-            print(f"[UnpackedLoader] Binding generative compute engine for {self.gguf_path.name}...")
-            # For 24GB RAM + GTX 1050: allocate 4 layers to VRAM, mmap weights
-            self._backend = Llama(
-                model_path=str(self.gguf_path),
-                n_ctx=2048,
-                n_gpu_layers=4,
-                n_threads=4,
-                n_batch=256,
-                use_mmap=True,
-                verbose=False
-            )
-            print("[UnpackedLoader] Generative compute engine successfully bound!")
+            # Guard against loading models larger than available RAM into standard llama backend
+            model_size_gb = self.gguf_path.stat().st_size / (1024 ** 3)
+            if model_size_gb > 20.0:
+                print(f"[UnpackedLoader] Model file is {model_size_gb:.1f} GB (exceeds physical RAM). Skipping llama backend binding to prevent OS freeze.")
+                self._backend = None
+            else:
+                print(f"[UnpackedLoader] Binding generative compute engine for {self.gguf_path.name}...")
+                self._backend = Llama(
+                    model_path=str(self.gguf_path),
+                    n_ctx=1024,
+                    n_gpu_layers=2,
+                    n_threads=4,
+                    n_batch=128,
+                    use_mmap=True,
+                    verbose=False
+                )
+                print("[UnpackedLoader] Generative compute engine successfully bound!")
         except Exception as e:
             print(f"[UnpackedLoader] Backend bind notice: {e}")
 
