@@ -708,6 +708,19 @@ async def load_model_api(req: ModelLoadRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load model: {str(e)}")
 
+@app.post("/api/models/unload")
+async def unload_model_api():
+    """Power model unload endpoint: completely drops model weights, clears prompt cache, flushes VRAM/RAM residues."""
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, unload_model)
+        return {
+            "status": "ok",
+            "message": "Power model unload complete. System RAM & VRAM residues purged."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to unload model: {str(e)}")
+
 @app.post("/api/server/restart")
 async def restart_server_api():
     """Triggers an in-process reload and memory reclamation of the active model and cache."""
