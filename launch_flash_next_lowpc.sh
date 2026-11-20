@@ -72,6 +72,7 @@ exec "$BIN" \
     --native "$MODEL_SHARD1" \
     --ple-gguf "$MODEL_SHARD2" \
     --mmap-experts \
+    --resident-budget-gib 6.0 \
     --expert-profile "$PROFILE_BIN" \
     --kv q4_0 \
     --max-context 512 \

@@ -56,6 +56,7 @@ exec "$BIN" \
     --native "$MODEL_FILE" \
     "${PLE_ARGS[@]}" \
     --mmap-experts \
+    --resident-budget-gib 6.0 \
     --expert-profile "$PROFILE_BIN" \
     --kv q4_0 \
     --max-context 512 \
