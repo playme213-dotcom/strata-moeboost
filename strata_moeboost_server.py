@@ -541,7 +541,20 @@ async def list_models_api(ssd_only: bool = True, moe_only: bool = True):
                 # Check MTP status: native MTP or external model draft
                 model_specific_draft = f_real.parent / f"{f_real.stem}_draft.gguf"
                 legacy_draft = f_real.parent / "draft.gguf"
-                mtp_supported = model_specific_draft.exists() or legacy_draft.exists() or "cerebras" in name_lower or "qwen" in name_lower or "flash" in name_lower
+                ple_file = f_real.parent / "Qwen3.8-Flash-Next-PLE-IQ4_NL.gguf"
+                mtp_draft_file = f_real.parent / "mtp-Qwen3.8-Flash-Next-draft.gguf"
+                
+                is_ple = "ple" in name_lower and not ("nople" in name_lower or "-nople" in name_lower)
+                has_ple = ple_file.exists() or not ("nople" in name_lower or "-nople" in name_lower)
+                mtp_supported = model_specific_draft.exists() or legacy_draft.exists() or mtp_draft_file.exists() or "cerebras" in name_lower or "qwen" in name_lower or "flash" in name_lower
+                
+                ple_mtp_desc = "PLE / MTP Ready"
+                if is_ple:
+                    ple_mtp_desc = "PLE Table (NVMe Stream)"
+                elif "nople" in name_lower:
+                    ple_mtp_desc = "MTP Active (Paired with PLE)" if ple_file.exists() else "Standard MoE (No PLE)"
+                elif mtp_supported:
+                    ple_mtp_desc = "MTP Speculative Active"
 
                 models.append({
                     "name": display_name,
@@ -553,7 +566,8 @@ async def list_models_api(ssd_only: bool = True, moe_only: bool = True):
                     "quant": quant,
                     "storage": "SSD/NVMe",
                     "mtp_supported": mtp_supported,
-                    "mtp_status": "MTP Active" if mtp_supported else "Lookup",
+                    "mtp_status": ple_mtp_desc,
+                    "ple_mtp_info": ple_mtp_desc,
                     "experts": exp_cnt or 103,
                     "top_k": exp_used or 8,
                     "layers": 48
@@ -750,21 +764,34 @@ DOWNLOAD_CATALOG = [
         "id": "qwen38-flash-next-gyro-s",
         "family": "Official Flash-Next Gyro (Default)",
         "name": "Qwen3.8-Flash-Next Gyro-S TQ1_0 (Official Flash-Next)",
-        "desc": "125B MoE | 27.6 GB | AgentionAI Gyro Hardware Quantization with APR rotor codes (Single GPU Optimized)",
+        "desc": "125B MoE | 27.6 GB | SOTA 512-Expert Gyro Trellis quant for 22GB RAM & 3GB GTX 1050 (Default Model)",
         "url": "https://huggingface.co/agentionai/Qwen3.8-Flash-Next-Gyro-GGUF/resolve/main/Qwen3.8-Flash-Next-Gyro-S-TQ1_0-noPLE.gguf",
         "filename": "Qwen3.8-Flash-Next-Gyro-S-TQ1_0-noPLE.gguf",
         "size_gb": 27.65,
-        "is_default": True
+        "is_default": True,
+        "ple_mtp_info": "Model weights without N-Gram table. Pair with PLE table for MTP speculative decode."
     },
     {
         "id": "qwen38-flash-next-ple-iq4nl",
         "family": "Official Flash-Next Gyro (Default)",
-        "name": "Qwen3.8-Flash-Next PLE Table (Decoupled NVMe Stream)",
-        "desc": "26.8 GB Standalone N-Gram Lookahead Table | Streams via --ple-io direct with 0 RAM footprint",
+        "name": "Qwen3.8-Flash-Next Standalone PLE Table (IQ4_NL)",
+        "desc": "26.8 GB Standalone N-Gram Lookahead Table | Streams via --ple-io direct (0 RAM footprint)",
         "url": "https://huggingface.co/Delgon/Qwen3.8-Flash-Next-PLE-GGUF/resolve/main/Qwen3.8-Flash-Next-PLE-IQ4_NL.gguf",
         "filename": "Qwen3.8-Flash-Next-PLE-IQ4_NL.gguf",
         "size_gb": 26.82,
-        "is_default": False
+        "is_default": False,
+        "ple_mtp_info": "PLE/MTP Speculative Engine Table. Read on-demand per token directly from NVMe SSD."
+    },
+    {
+        "id": "qwen38-flash-next-mtp-draft",
+        "family": "Official Flash-Next Gyro (Default)",
+        "name": "Qwen3.8-Flash-Next MTP Speculative Draft Head",
+        "desc": "3.75 GB Neural MTP Head | Accelerates decode up to 180-221 tok/s with draft verification",
+        "url": "https://huggingface.co/agentionai/Qwen3.8-Flash-Next-Gyro-GGUF/resolve/main/mtp-Qwen3.8-Flash-Next-draft.gguf",
+        "filename": "mtp-Qwen3.8-Flash-Next-draft.gguf",
+        "size_gb": 3.75,
+        "is_default": False,
+        "ple_mtp_info": "MTP Multi-Token Prediction draft head (used with --spec-type draft-mtp)."
     },
     {
         "id": "cerebras-qwen3-coder-iq4xs",
