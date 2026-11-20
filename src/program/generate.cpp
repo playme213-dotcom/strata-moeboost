@@ -3416,11 +3416,13 @@ int main(int argc, char** argv) {
             // every shard of the model (<name>-0000N-of-0000M.gguf beside --native), then the PLE shard: a split
             // may put any layer in any shard (Swift's GGUFs: layers 13-47 in shard 2, the PLE table in shard 1)
             o.native_dense_gguf = o.native_shards;
-            // a PLE-only table (tools/ple_fp8_pack.py: architecture strata-ple) holds no projections
+            // a PLE-only table (tools/ple_fp8_pack.py: architecture strata-ple, or standalone PLE GGUF lacking dense blocks) holds no projections
             bool ple_only = false;
             try {
                 strata::GgufFile pg(o.ple_gguf);
-                if (const strata::MetaValue* v = pg.get("general.architecture")) ple_only = v->s == "strata-ple";
+                if (const strata::MetaValue* v = pg.get("general.architecture")) {
+                    ple_only = (v->s == "strata-ple") || (pg.get("qwen4exp.block_count") == nullptr);
+                }
             } catch (const std::exception&) {}
             if (!o.ple_gguf.empty() && !ple_only &&
                 std::find(o.native_dense_gguf.begin(), o.native_dense_gguf.end(), o.ple_gguf) == o.native_dense_gguf.end())
@@ -4668,9 +4670,9 @@ int main(int argc, char** argv) {
             }
         }
         // An explicit number truncates the ranked list ("what would 2,000 slots give" without rebuilding the
-        // file).  `--expert-cache 0` used to take the count the profile was built for; the profile now ranks
-        // every pair (issue #46: a card that holds more than the old 8,000 used to stop there), so it means auto.
-        if (o.expert_cache == 0) o.expert_cache = -1;
+        // file). In strata-moeboost, --expert-cache 0 explicitly enforces ZERO experts in VRAM (Low-Spec Preferred).
+        // Only an unpassed or negative value (-1) means auto.
+        // if (o.expert_cache == 0) o.expert_cache = -1;
         // Multi-GPU: STRATA_PEER_HOT=<f> gives the peer card a share f of the HOT pairs, so both cards
         // compute routed experts every layer (the primary alone did ~25 of ~30 per layer-window).  Of the first
         // STRATA_PEER_HOT_AT (default 8700, ~ the primary's slots) ranks, every pair with floor((r+1)f) > floor(rf)

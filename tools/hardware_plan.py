@@ -48,7 +48,12 @@ def probe_hardware():
 
     return vram_total_mb, vram_free_mb, ram_total_mb, ram_avail_mb
 
-def compute_plan(vram_headroom_mb: int = 300, override_vram_mb: int | None = None, override_ram_mb: int | None = None):
+def compute_plan(vram_headroom_mb: int = 300, override_vram_mb: int | None = None, override_ram_mb: int | None = None, expert_size_mb: float = 1.05):
+    """
+    Computes optimal multi-tier hardware placement.
+    expert_size_mb: Size in MB per expert blob (e.g. 1.05 MB for Flash-Next, ~2.3 MB for Qwen-25B, ~3.8 MB for Qwen-35B).
+    Calculates exact dynamic 'helper chairs' that fit in available VRAM while respecting headroom.
+    """
     vram_tot, vram_free, ram_tot, ram_avail = probe_hardware()
     if override_vram_mb is not None:
         vram_tot = override_vram_mb
@@ -57,12 +62,16 @@ def compute_plan(vram_headroom_mb: int = 300, override_vram_mb: int | None = Non
         ram_tot = override_ram_mb
         ram_avail = override_ram_mb
 
+    # Clamp expert size to safe minimum
+    expert_size_mb = max(0.5, float(expert_size_mb))
+
     plan = {
         "vram_total_mb": vram_tot,
         "vram_free_mb": vram_free,
         "vram_headroom_mb": vram_headroom_mb,
         "ram_total_mb": ram_tot,
         "ram_avail_mb": ram_avail,
+        "expert_size_mb": expert_size_mb,
         "tier": "",
         "tier_name": "",
         "dense_in_vram": True,
@@ -74,73 +83,93 @@ def compute_plan(vram_headroom_mb: int = 300, override_vram_mb: int | None = Non
         "mmap_experts": True,
         "vram_reserve_mb": vram_headroom_mb,
         "expert_cache_slots": "auto",
+        "chairs_vram_mb": 0,
         "summary": ""
     }
 
     # =========================================================================
     # Tier 1: Ultra-Low Spec (<= 2 GB VRAM or <= 12 GB RAM)
+    # Target ~64 MB for helper chairs
     # =========================================================================
     if vram_tot <= 2048 or ram_tot <= 12288:
+        target_chairs_mb = 64.0
+        slots = max(16, int(target_chairs_mb / expert_size_mb))
+        actual_mb = round(slots * expert_size_mb, 1)
+
         plan["tier"] = "ultra_low"
-        plan["tier_name"] = "Tier 1: Ultra-Low Spec (2GB VRAM / <=12GB RAM)"
+        plan["tier_name"] = f"Tier 1: Ultra-Low Spec ({slots} Helper Chairs + Host-Mapped Dense)"
         plan["dense_in_vram"] = False       # Dense mapped in host RAM to avoid OOM
         plan["kv_format"] = "q4_0"
         plan["max_context"] = 256
         plan["prefill"] = 8
         plan["resident_budget_gib"] = "2.0" # Minimal RAM footprint
-        plan["expert_cache_slots"] = "0"
+        plan["expert_cache_slots"] = str(slots)
+        plan["chairs_vram_mb"] = actual_mb
         plan["vram_reserve_mb"] = max(150, vram_headroom_mb)
-        plan["summary"] = "Ultra-Low Spec: Host-mapped dense, 2GB expert RAM, 256 ctx, pure NVMe streaming"
+        plan["summary"] = f"Ultra-Low Spec (<=2GB VRAM): Host-mapped dense, {slots} Helper Chairs ({actual_mb}MB), 2GB expert RAM, 256 ctx, NVMe streaming"
 
     # =========================================================================
     # Tier 2: Low-Spec Preferred (GTX 1050/1650 3GB-4GB VRAM + 16-24GB RAM)
-    # USER SPEC: "Low-Spec Preferred no expert on vram"
-    # - Dense & KV cache in VRAM
-    # - Zero expert slots in VRAM (keeps 100% of remaining VRAM as headroom & scratch)
-    # - Hot/Warm experts in RAM (6.0 GiB)
-    # - Cold experts + PLE table on SSD
+    # Target ~135 MB for helper chairs (dynamic based on expert_size_mb)
     # =========================================================================
-    elif vram_tot <= 4096:
+    elif vram_tot < 5120:
+        target_chairs_mb = 135.0
+        slots = max(32, int(target_chairs_mb / expert_size_mb))
+        actual_mb = round(slots * expert_size_mb, 1)
+
         plan["tier"] = "low_spec_preferred"
-        plan["tier_name"] = "Tier 2: Low-Spec Preferred (No Experts in VRAM)"
-        plan["dense_in_vram"] = True        # Dense in VRAM (~1.3 GB)
+        plan["tier_name"] = f"Tier 2: Low-Spec Preferred ({slots} Helper Chairs + 6GB RAM)"
+        plan["dense_in_vram"] = True        # Dense in VRAM (~1.4 GB)
         plan["kv_format"] = "q4_0"          # Compact 4-bit Hadamard KV cache (~350 MB)
         plan["max_context"] = 512
         plan["prefill"] = 16
         plan["resident_budget_gib"] = "6.0" if ram_tot >= 20000 else "4.0"
-        plan["expert_cache_slots"] = "0"    # Explicit: NO experts in VRAM
-        plan["vram_reserve_mb"] = vram_headroom_mb
-        plan["summary"] = f"Low-Spec Preferred: Dense+KV in VRAM, 0 experts in VRAM (pure headroom/scratch), {plan['resident_budget_gib']}GB expert RAM, NVMe PLE/cold experts"
+        plan["expert_cache_slots"] = str(slots)
+        plan["chairs_vram_mb"] = actual_mb
+        plan["vram_reserve_mb"] = max(300, vram_headroom_mb)
+        plan["summary"] = f"Low-Spec Preferred (<5GB VRAM): Dense+KV in VRAM, {slots} VRAM Helper Chairs ({actual_mb}MB @ {expert_size_mb}MB/exp), {plan['resident_budget_gib']}GB experts in RAM, NVMe PLE/cold experts, >650MB headroom"
 
     # =========================================================================
-    # Tier 3: Mid-Spec Balanced (6GB-8GB VRAM, RTX 2060/3060/4060 + 24-32GB RAM)
+    # Tier 3: Mid-Spec Balanced (5GB - 8GB VRAM, RTX 2060/3060/4060 + 24-32GB RAM)
+    # Target ~1,250 MB for helper chairs
     # =========================================================================
     elif vram_tot <= 8192:
+        target_chairs_mb = 1250.0
+        slots = max(128, int(target_chairs_mb / expert_size_mb))
+        actual_mb = round(slots * expert_size_mb, 1)
+
         plan["tier"] = "mid_spec"
-        plan["tier_name"] = "Tier 3: Mid-Spec Balanced (6GB-8GB VRAM + 32GB RAM)"
+        plan["tier_name"] = f"Tier 3: Mid-Spec Balanced ({slots} Helper Chairs + 32GB RAM)"
         plan["dense_in_vram"] = True
         plan["kv_format"] = "q4_0"
         plan["max_context"] = 2048
         plan["prefill"] = 32
         plan["resident_budget_gib"] = "10.0" if ram_tot >= 28000 else "6.0"
-        plan["expert_cache_slots"] = "auto"
+        plan["expert_cache_slots"] = str(slots)
+        plan["chairs_vram_mb"] = actual_mb
         plan["vram_reserve_mb"] = vram_headroom_mb
-        plan["summary"] = f"Mid-Spec Balanced: Dense + ~1,200 Hot Experts in VRAM, 2048 ctx, {plan['resident_budget_gib']}GB expert RAM"
+        plan["summary"] = f"Mid-Spec Balanced (5GB-8GB VRAM): Dense + {slots} Helper Chairs ({actual_mb}MB @ {expert_size_mb}MB/exp), 2048 ctx, {plan['resident_budget_gib']}GB warm experts in RAM"
 
     # =========================================================================
     # Tier 4: High-Spec Extended (12GB-16GB VRAM, RTX 4070/3080/4080 + 32-64GB RAM)
+    # Target ~4,200 MB for helper chairs
     # =========================================================================
     elif vram_tot <= 16384:
+        target_chairs_mb = 4200.0
+        slots = max(512, int(target_chairs_mb / expert_size_mb))
+        actual_mb = round(slots * expert_size_mb, 1)
+
         plan["tier"] = "high_spec"
-        plan["tier_name"] = "Tier 4: High-Spec Extended (12GB-16GB VRAM + 32-64GB RAM)"
+        plan["tier_name"] = f"Tier 4: High-Spec Extended ({slots} Helper Chairs + 32-64GB RAM)"
         plan["dense_in_vram"] = True
         plan["kv_format"] = "k8v4"          # Exact INT8 K + rotated Q4_0 V
         plan["max_context"] = 8192
         plan["prefill"] = 64
         plan["resident_budget_gib"] = "16.0" if ram_tot >= 48000 else "10.0"
-        plan["expert_cache_slots"] = "auto"
+        plan["expert_cache_slots"] = str(slots)
+        plan["chairs_vram_mb"] = actual_mb
         plan["vram_reserve_mb"] = vram_headroom_mb
-        plan["summary"] = f"High-Spec Extended: Dense + ~4,000 Hot Experts in VRAM, 8192 ctx (k8v4), {plan['resident_budget_gib']}GB expert RAM"
+        plan["summary"] = f"High-Spec Extended (12GB-16GB VRAM): Dense + {slots} Helper Chairs ({actual_mb}MB @ {expert_size_mb}MB/exp), 8192 ctx (k8v4), {plan['resident_budget_gib']}GB expert RAM"
 
     # =========================================================================
     # Tier 5: Frontier Pro / Workstation (24GB - 48GB+ VRAM, RTX 3090/4090 / A6000)
@@ -156,6 +185,8 @@ def compute_plan(vram_headroom_mb: int = 300, override_vram_mb: int | None = Non
         plan["expert_cache_slots"] = "auto"
         plan["vram_reserve_mb"] = vram_headroom_mb
         plan["summary"] = "Frontier Pro: Full Model / Maximum Experts resident on GPU VRAM, 16k ctx, MTP draft active"
+
+    return plan
 
     return plan
 

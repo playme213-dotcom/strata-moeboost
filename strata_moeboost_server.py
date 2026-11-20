@@ -145,6 +145,7 @@ class AppState:
     llm: Any = None
     engine_mode: str = "llama"  # "llama" or "strata_unpacked"
     native_runtime: Any = None
+    hardware_plan: dict[str, Any] = {}
     ram_cache: TurboHotRodRAMCache | None = None
     telemetry: Telemetry | None = None
     model_path: str = ""
@@ -192,6 +193,9 @@ async def health():
         "ready": state.llm is not None,
         "vision": False,
         "status": "ready" if state.llm else "loading",
+        "hardware_plan": state.hardware_plan,
+        "tier": state.hardware_plan.get("tier", "low_spec_preferred"),
+        "tier_name": state.hardware_plan.get("tier_name", "Tier 2: Low-Spec Preferred"),
         "gpus": [
             {
                 "index": 0,
@@ -295,12 +299,15 @@ async def metrics(requests: str = ""):
             "version": "0.1.45-moeboost",
             "model": state.model_name,
             "max_context": state.n_ctx,
-            "expert_slots": 103,
-            "expert_cache_mib": 1150,
+            "expert_slots": int(state.hardware_plan.get("expert_cache_slots", 0)) if str(state.hardware_plan.get("expert_cache_slots", "")).isdigit() else 0,
+            "expert_cache_mib": 0 if state.hardware_plan.get("expert_cache_slots") == "0" else 1150,
+            "tier": state.hardware_plan.get("tier", "low_spec_preferred"),
+            "tier_name": state.hardware_plan.get("tier_name", "Tier 2: Low-Spec Preferred"),
+            "plan_summary": state.hardware_plan.get("summary", ""),
             "moe_tiers": {
                 "vram_layers": state.n_gpu_layers,
                 "ram_experts": 103,
-                "ssd_mode": "direct_pread",
+                "ssd_mode": state.hardware_plan.get("ple_io", "direct"),
                 "hit_rate": 0.994
             }
         },
@@ -612,18 +619,69 @@ async def check_model_support(path: str):
             "message": "Strata-MoEBoost is exclusively designed for Mixture of Experts (MoE) architectures with expert cache paging. Dense models are not accepted."
         }
 
+    # Auto Hardware Plan Inspection with Model-Specific Expert Size:
+    # Different models have different expert sizes:
+    # - Flash-Next: ~1.05 MB / expert
+    # - Qwen 25B Coder: ~2.3 MB / expert
+    # - Qwen 35B / Mixtral: ~3.8 MB / expert
+    exp_size_mb = 1.05
+    if "flash-next" in p.name.lower():
+        exp_size_mb = 1.05
+    elif "25b" in p.name.lower() or "reap" in p.name.lower():
+        exp_size_mb = 2.30
+    elif "35b" in p.name.lower() or "mixtral" in p.name.lower():
+        exp_size_mb = 3.80
+    elif exp_cnt and exp_cnt > 0:
+        exp_size_mb = max(0.5, round((size_gb * 1024 * 0.85) / (exp_cnt * 48), 2))
+
+    try:
+        from tools.hardware_plan import compute_plan
+        hw_plan = compute_plan(vram_headroom_mb=300, expert_size_mb=exp_size_mb)
+    except Exception:
+        hw_plan = {"tier": "low_spec_preferred", "tier_name": "Tier 2: Low-Spec Preferred", "dense_in_vram": True}
+
+    # Dense Pack Verification:
+    # Check if dense.bin exists for unpacked / native execution
+    pack_name = "flash_next_gyro" if "flash-next" in p.name.lower() else p.stem
+    pack_dir = ROOT / "pack" / pack_name
+    dense_bin = pack_dir / "dense.bin"
+    has_dense_bin = dense_bin.exists()
+    dense_size_mb = round(dense_bin.stat().st_size / (1024**2), 1) if has_dense_bin else 0.0
+
+    pack_status = f"✅ dense.bin ready ({dense_size_mb} MB in {pack_name})" if has_dense_bin else "⚠️ dense.bin not unpacked yet (will auto-unpack upon load)"
+
+    # Hardware applicability check
+    dense_in_vram = hw_plan.get("dense_in_vram", True)
+    vram_free = hw_plan.get("vram_free_mb", 3000)
+    headroom = hw_plan.get("vram_headroom_mb", 300)
+    
+    applicable = True
+    if has_dense_bin and dense_in_vram and (dense_size_mb + headroom > vram_free):
+        applicable = False
+        applicability_msg = f"VRAM constraint: dense.bin ({dense_size_mb} MB) + headroom ({headroom} MB) exceeds free VRAM ({vram_free} MB). Auto-switching dense to host RAM."
+    else:
+        applicability_msg = f"Setup Applicable: {hw_plan.get('tier_name')} | Dense in {'VRAM' if dense_in_vram else 'Host RAM'} | Headroom: {headroom} MB"
+
     return {
         "supported": True,
+        "applicable": applicable,
         "name": p.name,
         "size_gb": size_gb,
         "architecture": arch,
         "is_moe": True,
+        "has_dense_bin": has_dense_bin,
+        "dense_bin_path": str(dense_bin) if has_dense_bin else None,
+        "dense_size_mb": dense_size_mb,
+        "pack_status": pack_status,
+        "applicability_msg": applicability_msg,
+        "tier": hw_plan.get("tier"),
+        "tier_name": hw_plan.get("tier_name"),
         "experts": exp_cnt or 103,
         "top_k": exp_used or 8,
         "layers": 48,
-        "fit_status": f"Fits comfortably ({size_gb} GB vs 22 GB Host RAM + 3 GB VRAM)",
-        "recommended": "4 layers in VRAM, 4 physical CPU threads, 256 batch (Turbo MoEBoost Mode)",
-        "message": "Fully compatible with Strata-MoEBoost 3-tier memory engine."
+        "fit_status": f"{hw_plan.get('tier_name')} ({size_gb} GB on NVMe SSD)",
+        "recommended": f"Dense in {'VRAM' if dense_in_vram else 'RAM'}, 0 experts in VRAM, {hw_plan.get('resident_budget_gib', '6.0')}GB RAM expert cache",
+        "message": f"{pack_status} | {applicability_msg}"
     }
 
 class QuantizeRequest(BaseModel):
@@ -1465,8 +1523,41 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
     # Cleanly unload any previously loaded model first to prevent VRAM/RAM exhaustion
     unload_model()
 
-    # Check for Native Strata-HotRod Unpacked Engine execution
+    # Hardware Plan Optimizer: Auto-adjust hardware plan across diverse hardware sizes
+    # Enforces 300 MiB VRAM safety headroom margin and computes dynamic helper chairs based on model's expert size
     model_p = Path(path)
+    exp_size_mb = 1.05
+    if "flash-next" in model_p.name.lower():
+        exp_size_mb = 1.05
+    elif "25b" in model_p.name.lower() or "reap" in model_p.name.lower():
+        exp_size_mb = 2.30
+    elif "35b" in model_p.name.lower() or "mixtral" in model_p.name.lower():
+        exp_size_mb = 3.80
+
+    try:
+        from tools.hardware_plan import compute_plan
+        hw_plan = compute_plan(vram_headroom_mb=300, expert_size_mb=exp_size_mb)
+    except Exception as e:
+        print(f"[Strata-MoEBoost] Hardware plan note: {e}")
+        hw_plan = {
+            "tier": "low_spec_preferred",
+            "tier_name": "Tier 2: Low-Spec Preferred (128 VRAM Helper Chairs + 6GB RAM)",
+            "dense_in_vram": True,
+            "kv_format": "q4_0",
+            "max_context": 512,
+            "prefill": 16,
+            "resident_budget_gib": "6.0",
+            "ple_io": "direct",
+            "mmap_experts": True,
+            "vram_reserve_mb": 300,
+            "expert_cache_slots": "128",
+            "summary": "Low-Spec Preferred: Dense+KV in VRAM, 128 VRAM Helper Chairs (~130MB), 6.0GB expert RAM, NVMe PLE/cold experts"
+        }
+    state.hardware_plan = hw_plan
+    print(f"[Strata-MoEBoost] Hardware Auto-Adjust: {hw_plan['tier_name']}")
+    print(f"[Strata-MoEBoost] Tier Plan Details: {hw_plan['summary']}")
+
+    # Check for Native Strata-HotRod Unpacked Engine execution
     # If user selected Shard 2 by accident, automatically resolve to primary Shard 1
     if "-00002-of-00002.gguf" in model_p.name:
         candidate_shard1 = model_p.parent / model_p.name.replace("-00002-of-00002.gguf", "-00001-of-00002.gguf")
@@ -1480,20 +1571,26 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
         try:
             print(f"[Strata-MoEBoost] Launching Universal Unpacked Loader for {model_p.name} (Zero llama-cpp-python)...")
             from strata_unpacked_loader import UnpackedMoELoader
-            # Check for paired PLE fragment (Shard 2)
+            # Check for paired PLE fragment (Shard 2 or Standalone PLE Table)
             shard2_candidate = None
             if "-00001-of-00002" in model_p.name:
                 s2 = model_p.parent / model_p.name.replace("-00001-of-00002", "-00002-of-00002")
                 if s2.exists():
                     shard2_candidate = str(s2)
                     print(f"[Strata-MoEBoost] Paired PLE fragment attached: {s2.name}")
+            if not shard2_candidate:
+                standalone_ple = model_p.parent / "Qwen3.8-Flash-Next-PLE-IQ4_NL.gguf"
+                if standalone_ple.exists():
+                    shard2_candidate = str(standalone_ple)
+                    print(f"[Strata-MoEBoost] Paired Standalone PLE Table attached: {standalone_ple.name}")
 
-            state.llm = UnpackedMoELoader(gguf_path=str(model_p), shard2_path=shard2_candidate, use_pager=True)
+            res_budget = float(hw_plan.get("resident_budget_gib", 6.0))
+            state.llm = UnpackedMoELoader(gguf_path=str(model_p), shard2_path=shard2_candidate, resident_budget_gib=res_budget, use_pager=True)
             state.engine_mode = "strata_unpacked"
             state.model_path = path
             state.model_name = model_p.stem
-            state.n_ctx = n_ctx or 4096
-            state.n_gpu_layers = n_gpu_layers or 4
+            state.n_ctx = n_ctx or hw_plan.get("max_context", 512)
+            state.n_gpu_layers = n_gpu_layers or (0 if hw_plan.get("expert_cache_slots") == "0" else 4)
             state.n_threads = n_threads or 8
             print(f"[Strata-MoEBoost] Successfully engaged Universal Unpacked Architecture Loader ({state.llm.arch}, features: {', '.join(state.llm.native_features)}).")
             return
@@ -1505,23 +1602,23 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
     hw = analyze_hardware()
     
     # Auto-calibrate if parameters are not explicitly forced
-    effective_low_spec = low_spec or hw["is_low_spec"]
-    if effective_low_spec:
+    # Low-Spec Preferred Tier 2 enforcement: zero experts in VRAM, 300MB VRAM headroom
+    if hw_plan.get("tier") in ("low_spec_preferred", "ultra_low") or effective_low_spec:
         # Low-spec mode auto-detected or explicitly requested:
         # Clamps batch size, context window, and prevents VRAM exhaustion
-        final_gpu_layers = 2 if n_gpu_layers is None else min(n_gpu_layers, hw["recommended_gpu_layers"])
+        final_gpu_layers = 0 if hw_plan.get("expert_cache_slots") == "0" else (2 if n_gpu_layers is None else min(n_gpu_layers, hw["recommended_gpu_layers"]))
         final_threads = hw["physical_cores"]
         final_batch = 128 if n_batch is None else min(n_batch, 128)
-        final_ctx = 1024 if n_ctx is None else min(n_ctx, 1024)
+        final_ctx = hw_plan.get("max_context", 512) if n_ctx is None else min(n_ctx, 2048)
         final_mlock = False
         cache_bytes = 256 * 1024 * 1024
-        reason = "User specified --low-spec" if low_spec else f"Auto-detected hardware profile (RAM: {hw['ram_gib']}GB, VRAM: {hw['vram_gib']}GB)"
+        reason = f"{hw_plan['tier_name']} (RAM: {hw['ram_gib']}GB, VRAM: {hw['vram_gib']}GB, 300MB headroom)"
         print(f"[Strata-MoEBoost] Low-Spec PC Mode ENGAGED ({reason}): layers={final_gpu_layers}, batch={final_batch}, ctx={final_ctx}, mlock={final_mlock}")
     else:
         final_gpu_layers = hw["recommended_gpu_layers"] if n_gpu_layers is None else n_gpu_layers
         final_threads = hw["recommended_threads"] if n_threads is None else n_threads
         final_batch = hw["recommended_batch"] if n_batch is None else n_batch
-        final_ctx = hw["recommended_ctx"] if n_ctx is None else n_ctx
+        final_ctx = hw_plan.get("max_context", hw["recommended_ctx"]) if n_ctx is None else n_ctx
         final_mlock = hw["recommended_use_mlock"]
         cache_bytes = hw["recommended_cache_mb"] * 1024 * 1024
 

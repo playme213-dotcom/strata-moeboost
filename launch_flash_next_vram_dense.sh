@@ -61,8 +61,9 @@ exec "$BIN" \
     --pack "$PACK_DIR" \
     --native "$MODEL_FILE" \
     "${PLE_ARGS[@]}" \
+    --spec 2 \
     --mmap-experts \
-    --expert-cache "$PLAN_EXPERT_CACHE" \
+    --expert-cache "${PLAN_EXPERT_CACHE:-128}" \
     --resident-budget-gib "$PLAN_RESIDENT_BUDGET" \
     --vram-reserve-mib "$PLAN_VRAM_RESERVE" \
     --expert-profile "$PROFILE_BIN" \
