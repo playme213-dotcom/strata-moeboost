@@ -356,43 +356,79 @@ async def save_settings(request: Request):
 
 
 def inspect_moe_architecture(model_path: str | Path) -> tuple[bool, str, int, int]:
-    """Inspects GGUF metadata to verify whether the model is an MoE model.
+    """Inspects GGUF metadata quickly to verify whether the model is an MoE model.
     Returns: (is_moe: bool, architecture: str, expert_count: int, expert_used: int)
     """
     try:
-        import gguf
-        reader = gguf.GGUFReader(str(model_path))
-        arch = reader.get_field("general.architecture")
-        arch_str = bytes(arch.parts[arch.data[0]]).decode("utf-8").lower() if arch else ""
+        with open(str(model_path), "rb") as f:
+            magic = f.read(4)
+            if magic != b"GGUF":
+                return False, "dense", 0, 0
+            version, = struct.unpack("<I", f.read(4))
+            if version == 1:
+                n_tensors, n_kv = struct.unpack("<II", f.read(8))
+            else:
+                n_tensors, n_kv = struct.unpack("<QQ", f.read(16))
+            
+            kv = {}
+            for _ in range(n_kv):
+                k_len, = struct.unpack("<Q", f.read(8))
+                key = f.read(k_len).decode("utf-8", errors="ignore")
+                val_type, = struct.unpack("<I", f.read(4))
+                if val_type == 0:
+                    val, = struct.unpack("<B", f.read(1))
+                elif val_type == 1:
+                    val, = struct.unpack("<b", f.read(1))
+                elif val_type == 2:
+                    val, = struct.unpack("<H", f.read(2))
+                elif val_type == 3:
+                    val, = struct.unpack("<h", f.read(2))
+                elif val_type == 4:
+                    val, = struct.unpack("<I", f.read(4))
+                elif val_type == 5:
+                    val, = struct.unpack("<i", f.read(4))
+                elif val_type == 6:
+                    val, = struct.unpack("<f", f.read(4))
+                elif val_type == 7:
+                    val, = struct.unpack("<?", f.read(1))
+                elif val_type == 8:
+                    s_len, = struct.unpack("<Q", f.read(8))
+                    val = f.read(s_len).decode("utf-8", errors="ignore")
+                elif val_type == 9:
+                    arr_type, arr_len = struct.unpack("<IQ", f.read(12))
+                    if arr_type in (0, 1, 7):
+                        f.seek(arr_len * 1, 1)
+                    elif arr_type in (2, 3):
+                        f.seek(arr_len * 2, 1)
+                    elif arr_type in (4, 5, 6):
+                        f.seek(arr_len * 4, 1)
+                    elif arr_type in (10, 11, 12):
+                        f.seek(arr_len * 8, 1)
+                    elif arr_type == 8:
+                        for _ in range(arr_len):
+                            sl, = struct.unpack("<Q", f.read(8))
+                            f.seek(sl, 1)
+                    else:
+                        break
+                    val = arr_len
+                elif val_type in (10, 11, 12):
+                    val, = struct.unpack("<Q", f.read(8))
+                else:
+                    break
+                kv[key] = val
 
-        # Check for expert fields in KV pairs
-        expert_count = 0
-        expert_used = 0
-        for f in reader.fields.values():
-            name = f.name.lower()
-            if "expert_count" in name:
-                expert_count = int(f.parts[f.data[0]][0])
-            elif "expert_used_count" in name:
-                expert_used = int(f.parts[f.data[0]][0])
-
-        # If architecture explicitly states moe or has > 1 experts
-        if "moe" in arch_str or expert_count > 1:
-            return True, arch_str or "moe", expert_count or 103, expert_used or 8
-
-        # Tensor heuristic check
-        for t in reader.tensors:
-            tname = t.name.lower()
-            if "exps" in tname or "expert" in tname:
-                return True, arch_str or "moe", expert_count or 64, expert_used or 8
-
-        # Name heuristic check
-        name_lower = Path(model_path).name.lower()
-        if "moe" in name_lower or "a3b" in name_lower or "reap" in name_lower or "mixtral" in name_lower or "dsv" in name_lower or "flash-next" in name_lower:
-            return True, arch_str or "moe", expert_count or 103, expert_used or 8
-
-        return False, arch_str or "dense", 0, 0
+            arch = kv.get("general.architecture", "moe")
+            exp_cnt = 0
+            exp_used = 0
+            for k, v in kv.items():
+                if "expert_count" in k and isinstance(v, int):
+                    exp_cnt = v
+                elif "expert_used_count" in k and isinstance(v, int):
+                    exp_used = v
+            
+            is_moe = ("moe" in str(arch).lower() or "exp" in str(arch).lower() or exp_cnt > 1 or "flash-next" in Path(model_path).name.lower())
+            return is_moe, str(arch), exp_cnt or 103, exp_used or 8
     except Exception:
-        # Fallback heuristic based on filename
         name_lower = Path(model_path).name.lower()
         if "moe" in name_lower or "a3b" in name_lower or "reap" in name_lower or "mixtral" in name_lower or "flash-next" in name_lower:
             return True, "moe", 103, 8
@@ -741,6 +777,25 @@ DOWNLOAD_CATALOG = [
         "url": "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-UD-IQ4_XS.gguf",
         "filename": "Qwen3.5-35B-A3B-UD-IQ4_XS.gguf",
         "size_gb": 16.29
+    },
+    {
+        "id": "strata-flash-next-coder-iq1m-bundle",
+        "family": "Original Strata Flash-Next",
+        "name": "Qwen3.8-Flash-Next Coder IQ1_M (Full 2-Shard Bundle)",
+        "desc": "125B MoE | 54.4 GB | Ultra-quantized Flash-Next Coder for local SSD (Shard 1 & 2)",
+        "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-Coder-GGUF/resolve/main/IQ1_M/Qwen3.8-Flash-Next-GSQ-RCO-IQ1_M-00001-of-00002.gguf",
+        "filename": "Qwen3.8-Flash-Next-GSQ-RCO-IQ1_M-00001-of-00002.gguf",
+        "size_gb": 54.4,
+        "shards": [
+            {
+                "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-Coder-GGUF/resolve/main/IQ1_M/Qwen3.8-Flash-Next-GSQ-RCO-IQ1_M-00001-of-00002.gguf",
+                "filename": "Qwen3.8-Flash-Next-GSQ-RCO-IQ1_M-00001-of-00002.gguf"
+            },
+            {
+                "url": "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-Coder-GGUF/resolve/main/IQ1_M/Qwen3.8-Flash-Next-GSQ-RCO-IQ1_M-00002-of-00002.gguf",
+                "filename": "Qwen3.8-Flash-Next-GSQ-RCO-IQ1_M-00002-of-00002.gguf"
+            }
+        ]
     },
     {
         "id": "strata-flash-next-orig-bundle",
