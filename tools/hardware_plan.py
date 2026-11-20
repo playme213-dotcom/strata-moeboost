@@ -94,18 +94,23 @@ def compute_plan(vram_headroom_mb: int = 300, override_vram_mb: int | None = Non
 
     # =========================================================================
     # Tier 2: Low-Spec Preferred (GTX 1050/1650 3GB-4GB VRAM + 16-24GB RAM)
+    # USER SPEC: "Low-Spec Preferred no expert on vram"
+    # - Dense & KV cache in VRAM
+    # - Zero expert slots in VRAM (keeps 100% of remaining VRAM as headroom & scratch)
+    # - Hot/Warm experts in RAM (6.0 GiB)
+    # - Cold experts + PLE table on SSD
     # =========================================================================
     elif vram_tot <= 4096:
         plan["tier"] = "low_spec_preferred"
-        plan["tier_name"] = "Tier 2: Low-Spec Preferred (3GB-4GB VRAM + 16-24GB RAM)"
+        plan["tier_name"] = "Tier 2: Low-Spec Preferred (No Experts in VRAM)"
         plan["dense_in_vram"] = True        # Dense in VRAM (~1.3 GB)
-        plan["kv_format"] = "q4_0"
+        plan["kv_format"] = "q4_0"          # Compact 4-bit Hadamard KV cache (~350 MB)
         plan["max_context"] = 512
         plan["prefill"] = 16
         plan["resident_budget_gib"] = "6.0" if ram_tot >= 20000 else "4.0"
-        plan["expert_cache_slots"] = "auto"
+        plan["expert_cache_slots"] = "0"    # Explicit: NO experts in VRAM
         plan["vram_reserve_mb"] = vram_headroom_mb
-        plan["summary"] = f"Low-Spec Preferred: Dense in VRAM, KV q4_0 (512 ctx), {plan['resident_budget_gib']}GB expert RAM, {vram_headroom_mb}MB VRAM headroom"
+        plan["summary"] = f"Low-Spec Preferred: Dense+KV in VRAM, 0 experts in VRAM (pure headroom/scratch), {plan['resident_budget_gib']}GB expert RAM, NVMe PLE/cold experts"
 
     # =========================================================================
     # Tier 3: Mid-Spec Balanced (6GB-8GB VRAM, RTX 2060/3060/4060 + 24-32GB RAM)
@@ -191,6 +196,7 @@ if __name__ == "__main__":
         print(f"PLAN_MAX_CONTEXT={p['max_context']}")
         print(f"PLAN_PREFILL={p['prefill']}")
         print(f"PLAN_RESIDENT_BUDGET={p['resident_budget_gib']}")
+        print(f"PLAN_EXPERT_CACHE='{p['expert_cache_slots']}'")
         print(f"PLAN_VRAM_RESERVE={p['vram_reserve_mb']}")
         print(f"PLAN_SUMMARY='{p['summary']}'")
     else:
