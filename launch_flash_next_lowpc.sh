@@ -26,11 +26,15 @@ if [[ ! -x "$BIN" ]]; then
     exit 1
 fi
 
+export PYTHONPATH="$SCRIPT_DIR/build-cuda12/_deps/strata_llamacpp-src/gguf-py:${PYTHONPATH:-}"
+export STRATA_GGUF_PY="$SCRIPT_DIR/build-cuda12/_deps/strata_llamacpp-src/gguf-py"
+PYTHON_BIN="python3"
+
 # Step 1: Ensure dense weights and vocabulary are unpacked into pack dir
 if [[ ! -f "$PACK_DIR/dense.bin" || ! -f "$PACK_DIR/tokenizer/vocab.json" ]]; then
     echo "Unpacking dense layers & tokenizer to $PACK_DIR..."
     mkdir -p "$PACK_DIR"
-    "$SCRIPT_DIR/.venv/bin/python" "$SCRIPT_DIR/tools/iq_pack.py" \
+    "$PYTHON_BIN" "$SCRIPT_DIR/tools/iq_pack.py" \
         --gguf "$MODEL_SHARD1" \
         --out "$PACK_DIR" \
         --compat-bf16 \
@@ -44,7 +48,7 @@ fi
 PROFILE_BIN="$PACK_DIR/profile.bin"
 if [[ ! -f "$PROFILE_BIN" ]]; then
     echo "Generating Flash-Next 512-expert profile ($PROFILE_BIN)..."
-    "$SCRIPT_DIR/.venv/bin/python" "$SCRIPT_DIR/tools/make_profile.py" \
+    "$PYTHON_BIN" "$SCRIPT_DIR/tools/make_profile.py" \
         --no-base \
         --n-expert 512 \
         --out "$PROFILE_BIN"

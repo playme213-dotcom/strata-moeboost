@@ -10,11 +10,9 @@ BIN="$SCRIPT_DIR/build-cuda12/strata"
 MODEL_FILE="/media/local-ai/Model/Qwen3.8-Flash-Next-Gyro-S-TQ1_0-noPLE.gguf"
 PLE_FILE="/media/local-ai/Model/Qwen3.8-Flash-Next-PLE-IQ4_NL.gguf"
 PACK_DIR="$SCRIPT_DIR/pack/flash_next_gyro"
-PYTHON_BIN="$SCRIPT_DIR/.venv/bin/python"
-
-if [[ ! -x "$PYTHON_BIN" ]]; then
-    PYTHON_BIN="python3"
-fi
+PYTHON_BIN="python3"
+export PYTHONPATH="$SCRIPT_DIR/build-cuda12/_deps/strata_llamacpp-src/gguf-py:${PYTHONPATH:-}"
+export STRATA_GGUF_PY="$SCRIPT_DIR/build-cuda12/_deps/strata_llamacpp-src/gguf-py"
 
 echo "=== Strata-MoEBoost: Flash-Next Gyro Hardware Preparation ==="
 echo "Engine Binary : $BIN"
