@@ -5,10 +5,10 @@
 # ==============================================================================
 set -euo pipefail
 
-MODEL_SHARD1="${1:-/media/local-ai/Model/Qwen3.8-Flash-Next-GSQ-RCO-IQ1_M-00001-of-00002.gguf}"
-MODEL_SHARD2="${2:-/media/local-ai/Model/Qwen3.8-Flash-Next-GSQ-RCO-IQ1_M-00002-of-00002.gguf}"
+MODEL_SHARD1="${1:-/media/local-ai/Model/Qwen3.8-Flash-Next-Gyro-S-TQ1_0-noPLE.gguf}"
+MODEL_SHARD2="${2:-/media/local-ai/Model/Qwen3.8-Flash-Next-PLE-IQ4_NL.gguf}"
 PORT="${3:-4133}"
-PACK_DIR="${4:-/home/local-ai/strata-moeboost/pack/flash_next_lowpc}"
+PACK_DIR="${4:-/home/local-ai/strata-moeboost/pack/flash_next_gyro}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN="$SCRIPT_DIR/build-cuda12/strata"
@@ -40,13 +40,13 @@ else
     echo "Pack directory $PACK_DIR already prepared."
 fi
 
-# Step 2: Ensure 256-expert profile exists for Flash-Next
+# Step 2: Ensure 512-expert profile exists for Flash-Next
 PROFILE_BIN="$PACK_DIR/profile.bin"
 if [[ ! -f "$PROFILE_BIN" ]]; then
-    echo "Generating Flash-Next 256-expert profile ($PROFILE_BIN)..."
+    echo "Generating Flash-Next 512-expert profile ($PROFILE_BIN)..."
     "$SCRIPT_DIR/.venv/bin/python" "$SCRIPT_DIR/tools/make_profile.py" \
         --no-base \
-        --n-expert 256 \
+        --n-expert 512 \
         --out "$PROFILE_BIN"
 fi
 

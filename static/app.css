@@ -53,6 +53,15 @@ main { flex: 1; min-height: 0; display: flex; }
              font-size: var(--st-fs-md); }
 /* MCP tool calls inside an answer: one compact collapsible block per call */
 .st-bubble .tool-call { margin: var(--st-s-3) 0; }
+.st-steps { margin-bottom: 8px; display: flex; align-items: center; }
+.st-steps__track { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.st-step-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--st-line); color: var(--st-ink-muted); transition: all 0.2s ease; }
+.st-step-badge .st-step-num { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; background: var(--st-line); font-size: 10px; font-weight: bold; }
+.st-step-badge--active { background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.4); color: #60a5fa; }
+.st-step-badge--active .st-step-num { background: #3b82f6; color: #fff; animation: pulse-step 1.5s infinite; }
+.st-step-badge--done { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); color: #34d399; }
+.st-step-badge--done .st-step-num { background: #10b981; color: #fff; }
+@keyframes pulse-step { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.8; } }
 .tool-call > summary { min-width: 0; padding: 8px 12px; }
 .tool-call__name { font: 500 var(--st-fs-sm)/1.2 var(--st-font-mono); color: var(--st-ink); white-space: nowrap; }
 .tool-call__preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--st-fs-xs); }

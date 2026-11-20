@@ -996,7 +996,8 @@ function msgEl(m, i) {
     meta.textContent = `You · ${timeStr(m.time)}${m.meta ? ` · ${m.meta}` : ""}`;
     el.appendChild(meta);
   } else {
-    el.innerHTML = `<details class="st-collapse think" hidden><summary>${icon("thinking", "st-icon st-icon--sm")}<span class="think-title"></span>` +
+    el.innerHTML = `<div class="st-steps" hidden><div class="st-steps__track"></div></div>` +
+      `<details class="st-collapse think" hidden><summary>${icon("thinking", "st-icon st-icon--sm")}<span class="think-title"></span>` +
       `${icon("chevron", "st-icon st-icon--sm st-chev")}</summary><div class="st-collapse__body thinking"></div></details>` +
       `<div class="st-bubble"></div><div class="st-msg__meta"><span class="meta-text"></span>` +
       `<button class="st-btn st-btn--icon" data-msg-copy aria-label="Copy the answer" title="Copy">${icon("copy")}</button></div>`;
@@ -1053,6 +1054,38 @@ function onTool(m, x) {
   }
 }
 function updateAssistant(el, m, streaming) {
+  // Render step progression tracker
+  const stepsEl = el.querySelector(".st-steps");
+  if (stepsEl) {
+    const hasThought = !!m.reasoning;
+    const hasTools = !!(m.tools && m.tools.length);
+    const hasText = !!m.text;
+    if (hasThought || hasTools) {
+      stepsEl.hidden = false;
+      const track = stepsEl.querySelector(".st-steps__track");
+      let stepsHtml = "";
+      let stepNum = 1;
+      if (hasThought) {
+        const thoughtState = streaming && !hasText && !hasTools ? "active" : "done";
+        stepsHtml += `<span class="st-step-badge st-step-badge--${thoughtState}">` +
+                     `<span class="st-step-num">${stepNum++}</span> Reasoning</span>`;
+      }
+      if (hasTools) {
+        const toolState = m.tools.some(t => t.state === "running" || t.state === "writing") ? "active" : "done";
+        stepsHtml += `<span class="st-step-badge st-step-badge--${toolState}">` +
+                     `<span class="st-step-num">${stepNum++}</span> Tool Execution (${m.tools.length})</span>`;
+      }
+      if (hasText || streaming) {
+        const outState = streaming ? "active" : "done";
+        stepsHtml += `<span class="st-step-badge st-step-badge--${outState}">` +
+                     `<span class="st-step-num">${stepNum++}</span> Final Synthesis</span>`;
+      }
+      track.innerHTML = stepsHtml;
+    } else {
+      stepsEl.hidden = true;
+    }
+  }
+
   const det = el.querySelector("details.think");
   if (m.reasoning) {
     det.hidden = false;

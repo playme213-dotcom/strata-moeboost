@@ -747,6 +747,16 @@ async def restart_server_api():
 
 DOWNLOAD_CATALOG = [
     {
+        "id": "qwen38-flash-next-gyro-s",
+        "family": "Official Flash-Next Gyro (Default)",
+        "name": "Qwen3.8-Flash-Next Gyro-S TQ1_0 (Official Flash-Next)",
+        "desc": "125B MoE | 27.6 GB | AgentionAI Gyro Hardware Quantization with APR rotor codes (Single GPU Optimized)",
+        "url": "https://huggingface.co/agentionai/Qwen3.8-Flash-Next-Gyro-GGUF/resolve/main/Qwen3.8-Flash-Next-Gyro-S-TQ1_0-noPLE.gguf",
+        "filename": "Qwen3.8-Flash-Next-Gyro-S-TQ1_0-noPLE.gguf",
+        "size_gb": 27.65,
+        "is_default": True
+    },
+    {
         "id": "cerebras-qwen3-coder-iq4xs",
         "family": "MoE Coding & Reasoning",
         "name": "Cerebras Qwen3-Coder-REAP-25B-A3B IQ4_XS (Installed Default)",
@@ -1107,6 +1117,9 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = False
     seed: int | None = None
     reasoning_effort: str | None = None
+    tools: list[dict] | None = None
+    tool_choice: Any | None = None
+    strata_mcp: bool = False
 
     class Config:
         extra = "allow"
@@ -1167,12 +1180,18 @@ async def chat_completions(req: ChatCompletionRequest):
 
     if not req.stream:
         t0 = time.time()
+        extra_kwargs = {}
+        if req.tools:
+            extra_kwargs["tools"] = req.tools
+        if req.tool_choice:
+            extra_kwargs["tool_choice"] = req.tool_choice
         res = state.llm.create_chat_completion(
             messages=msgs,
             max_tokens=max_tok,
             temperature=req.temperature,
             top_p=req.top_p,
-            stream=False
+            stream=False,
+            **extra_kwargs
         )
         dt = max(0.001, time.time() - t0)
         tok_count = res.get("usage", {}).get("completion_tokens", 0)
@@ -1212,18 +1231,87 @@ async def chat_completions(req: ChatCompletionRequest):
             prompt_tokens = sum(len(m.get("content", "").split()) for m in msgs)
 
         try:
+            extra_kwargs = {}
+            if req.tools:
+                extra_kwargs["tools"] = req.tools
+            if req.tool_choice:
+                extra_kwargs["tool_choice"] = req.tool_choice
             gen = state.llm.create_chat_completion(
                 messages=msgs,
                 max_tokens=max_tok,
                 temperature=req.temperature,
                 top_p=req.top_p,
-                stream=True
+                stream=True,
+                **extra_kwargs
             )
+            # Stream processor with tag interception for agent tool calls & steps
+            inside_tool = False
+            tool_call_buf = ""
             for chunk in gen:
                 completion_tokens += 1
                 state.cur_gen_tokens = completion_tokens
                 elapsed = max(0.001, time.time() - t0)
                 state.cur_gen_tok_s = round(completion_tokens / elapsed, 1)
+
+                # Check if chunk carries delta text to inspect for tool tags
+                choices = chunk.get("choices", [])
+                if choices:
+                    delta = choices[0].get("delta", {})
+                    content_piece = delta.get("content", "")
+                    
+                    # Intercept XML/custom <tool_call> tags and emit strata_mcp events
+                    if "<tool_call>" in content_piece or inside_tool:
+                        inside_tool = True
+                        tool_call_buf += content_piece
+                        if "</tool_call>" in tool_call_buf:
+                            inside_tool = False
+                            # Parse function and parameter
+                            import re
+                            call_id = f"call_{uuid.uuid4().hex[:8]}"
+                            fn_m = re.search(r"<function=([^>]+)>", tool_call_buf)
+                            fn_name = fn_m.group(1) if fn_m else "tool"
+                            param_m = re.findall(r"<parameter=([^>]+)>(.*?)</parameter>", tool_call_buf, re.S)
+                            fn_args = {k: v for k, v in param_m} if param_m else {}
+                            if not fn_args:
+                                # Fallback json inside function
+                                inner = re.sub(r"</?function[^>]*>", "", tool_call_buf.replace("<tool_call>", "").replace("</tool_call>", "")).strip()
+                                try:
+                                    fn_args = json.loads(inner)
+                                except Exception:
+                                    fn_args = {"raw": inner}
+                            
+                            # Emit strata_mcp event for UI step tracking
+                            mcp_chunk = {
+                                "id": chunk.get("id", f"chatcmpl-{int(time.time())}"),
+                                "object": "chat.completion.chunk",
+                                "created": chunk.get("created", int(time.time())),
+                                "model": state.model_name,
+                                "choices": [{
+                                    "index": 0,
+                                    "delta": {
+                                        "tool_calls": [{
+                                            "id": call_id,
+                                            "type": "function",
+                                            "function": {
+                                                "name": fn_name,
+                                                "arguments": json.dumps(fn_args)
+                                            }
+                                        }]
+                                    }
+                                }],
+                                "strata_mcp": {
+                                    "event": "call",
+                                    "id": call_id,
+                                    "name": fn_name,
+                                    "tool": fn_name,
+                                    "arguments": fn_args,
+                                    "round": 1
+                                }
+                            }
+                            yield f"data: {json.dumps(mcp_chunk)}\n\n"
+                            tool_call_buf = ""
+                            continue
+
                 yield f"data: {json.dumps(chunk)}\n\n"
                 await asyncio.sleep(0.0001)
         except Exception as e:
