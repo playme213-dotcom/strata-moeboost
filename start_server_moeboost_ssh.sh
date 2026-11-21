@@ -68,12 +68,13 @@ echo " 4) Qwen1.5-MoE-A2.7B-Chat Q2_K (5.5GB) - Ultra-Fast Lightweight MoE"
 echo " 5) DeepSeek-Coder-V2-Lite-Instruct Q4_K_M (9.6GB) - Coding MoE"
 echo " 6) Mixtral-8x7B-Instruct-v0.1 Q3_K_M (22.5GB) - 8x7B Standard MoE"
 echo " 7) Existing local model (Specify path)"
+echo " 8) Qwen3-Coder-Next Q4_K_M (48.73GB) - 80B MoE Next-Gen Flagship"
 echo "------------------------------------------------------------------"
 
 if [ -n "$1" ]; then
     MODEL_CHOICE="$1"
 else
-    read -r -p "Select model to download and load [1-7] (default 1): " MODEL_CHOICE || MODEL_CHOICE="1"
+    read -r -p "Select model to download and load [1-8] (default 1): " MODEL_CHOICE || MODEL_CHOICE="1"
 fi
 
 SELECTED_URL=""
@@ -104,6 +105,10 @@ case "$MODEL_CHOICE" in
         read -r -p "Enter full path to your existing GGUF model: " CUSTOM_PATH
         SELECTED_FILE="$CUSTOM_PATH"
         ;;
+    8)
+        SELECTED_URL="https://huggingface.co/bartowski/Qwen_Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-Q4_K_M.gguf"
+        SELECTED_FILE="$MODEL_DIR/Qwen3-Coder-Next-Q4_K_M.gguf"
+        ;;
     1|*)
         SELECTED_URL="https://huggingface.co/bartowski/cerebras_Qwen3-Coder-REAP-25B-A3B-GGUF/resolve/main/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
         SELECTED_FILE="$MODEL_DIR/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf"
@@ -116,7 +121,7 @@ echo "[Step 3/5] Checking / Downloading Model..."
 if [ -n "$SELECTED_URL" ] && [ ! -f "$SELECTED_FILE" ]; then
     echo "[+] Downloading from: $SELECTED_URL"
     FILENAME="$(basename "$SELECTED_FILE")"
-    
+
     # Build optional auth headers if HF_TOKEN is present
     HF_HEADER=()
     WGET_HEADER=()
@@ -198,10 +203,10 @@ fi
 
 echo "[✓] Strata-MoEBoost Server is Ready on http://127.0.0.1:$PORT"
 
-# Step 5: Direct SSH Remote Access (Simpler, Easier, No Bandwidth Limits, Zero Sign-ups)
+# Step 5: Direct SSH Remote Access through a raw TCP tunnel (Pinggy)
 echo ""
 echo "=================================================================="
-echo "   ⚡ Direct SSH Remote Connection (No ngrok, Unlimited Bandwidth)"
+echo "   ⚡ Direct SSH Remote Connection (Pinggy TCP Tunnel)"
 echo "=================================================================="
 
 # Ensure OpenSSH server is available
@@ -210,26 +215,21 @@ if ! command -v sshd >/dev/null 2>&1; then
     sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y openssh-server >/dev/null 2>&1 || true
 fi
 
+# Generate a fresh password each run so an exposed previous password is not reused.
 SSH_AUTH_FILE="$ROOT_DIR/.ssh_auth"
-SSH_PASSWORD=""
-if [ -f "$SSH_AUTH_FILE" ]; then
-    SSH_PASSWORD=$(cat "$SSH_AUTH_FILE" 2>/dev/null || true)
-fi
+SSH_PASSWORD="moeboost$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+printf '%s' "$SSH_PASSWORD" > "$SSH_AUTH_FILE"
+chmod 600 "$SSH_AUTH_FILE"
 
-if [ -z "$SSH_PASSWORD" ]; then
-    SSH_PASSWORD="moeboost${RANDOM:0:4}"
-    echo "$SSH_PASSWORD" > "$SSH_AUTH_FILE"
-    chmod 600 "$SSH_AUTH_FILE"
-fi
-
-# Optional: Accept local PC public SSH key for passwordless authentication
+# Optional: accept a local PC public SSH key (set SSH_PUBLIC_KEY before running).
 mkdir -p /root/.ssh && chmod 700 /root/.ssh
-if [ -n "$SSH_PUBLIC_KEY" ]; then
-    echo "$SSH_PUBLIC_KEY" >> /root/.ssh/authorized_keys
+if [ -n "${SSH_PUBLIC_KEY:-}" ]; then
+    touch /root/.ssh/authorized_keys
+    grep -qxF "$SSH_PUBLIC_KEY" /root/.ssh/authorized_keys 2>/dev/null || echo "$SSH_PUBLIC_KEY" >> /root/.ssh/authorized_keys
     chmod 600 /root/.ssh/authorized_keys
 fi
 
-# Configure sshd on a dedicated custom port (default 22222, avoid standard port 22 collision)
+# Configure sshd on a dedicated port inside Colab.
 SSHD_PORT="${SSHD_PORT:-22222}"
 sudo mkdir -p /var/run/sshd 2>/dev/null || true
 echo "root:$SSH_PASSWORD" | sudo chpasswd 2>/dev/null || true
@@ -239,49 +239,63 @@ sudo sed -i 's/#Port 22/Port '"$SSHD_PORT"'/' /etc/ssh/sshd_config 2>/dev/null |
 sudo sed -i 's/^Port .*/Port '"$SSHD_PORT"'/' /etc/ssh/sshd_config 2>/dev/null || true
 sudo service ssh restart >/dev/null 2>&1 || sudo /usr/sbin/sshd -p "$SSHD_PORT" 2>/dev/null || true
 
-# ------------------------------------------------------------------------------
-# Feature 1: MoEBoost SSH Secure Connect (Strictly Private - Password Protected)
-# ------------------------------------------------------------------------------
-# We ONLY expose the SSH port over the reverse tunnel. No public HTTP port is opened!
-# Anyone wishing to connect MUST authenticate with the SSH password.
-# ------------------------------------------------------------------------------
+# Pinggy provides raw TCP forwarding. localhost.run's free tunnel is HTTP-oriented
+# and does not provide this raw TCP SSH endpoint.
 SSH_TUNNEL_LOG="$ROOT_DIR/.ssh_tunnel.log"
-pkill -f "localhost.run" 2>/dev/null || true
-
-# Forward ONLY the SSH daemon port ($SSHD_PORT). HTTP port $PORT remains completely private!
-ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 2222:127.0.0.1:$SSHD_PORT nokey@localhost.run > "$SSH_TUNNEL_LOG" 2>&1 &
+pkill -f 'free\.pinggy\.io' 2>/dev/null || true
+ssh -p 443 -T -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 \
+    -o ExitOnForwardFailure=yes -R0:127.0.0.1:"$SSHD_PORT" tcp@free.pinggy.io \
+    > "$SSH_TUNNEL_LOG" 2>&1 &
 TUNNEL_PID=$!
 
-sleep 4
-SSH_TUNNEL_HOST=$(grep -oE '[a-zA-Z0-9.-]+\.lhr\.life' "$SSH_TUNNEL_LOG" | head -n 1 || true)
+PINGGY_HOST=""
+PINGGY_PORT=""
+for _ in $(seq 1 30); do
+    if [ -s "$SSH_TUNNEL_LOG" ]; then
+        PINGGY_ENDPOINT=$(grep -Eo 'tcp://[A-Za-z0-9.-]+:[0-9]+' "$SSH_TUNNEL_LOG" | head -n 1 || true)
+        if [ -n "$PINGGY_ENDPOINT" ]; then
+            PINGGY_HOST=$(printf '%s' "$PINGGY_ENDPOINT" | sed -E 's#tcp://([^:]+):[0-9]+#\1#')
+            PINGGY_PORT=$(printf '%s' "$PINGGY_ENDPOINT" | sed -E 's#tcp://[^:]+:([0-9]+)#\1#')
+            break
+        fi
+    fi
+    if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
+        break
+    fi
+    sleep 1
+done
 
 echo ""
 echo "=================================================================="
-echo " 🔒 FEATURE 1: MoEBoost SSH Secure Connect (Private & Encrypted)"
+echo " 🔒 FEATURE 1: MoEBoost SSH Secure Connect (Encrypted SSH over TCP)"
 echo "=================================================================="
-echo " * Status: Purely Private. Public HTTP is DISABLED for security."
-echo " * All access requires SSH password authentication."
-echo ""
-echo " Run this command in terminal / PowerShell on your PC:"
-echo " -----------------------------------------------------------------"
-if [ -n "$SSH_TUNNEL_HOST" ]; then
-echo " ssh -N -L 5133:127.0.0.1:$PORT -p 2222 root@$SSH_TUNNEL_HOST"
+if [ -n "$PINGGY_HOST" ] && [ -n "$PINGGY_PORT" ]; then
+    echo " * Status: TCP tunnel established. SSH authentication is required."
+    echo " * Tunnel endpoint: $PINGGY_HOST:$PINGGY_PORT"
+    echo ""
+    echo " Run this command in terminal / PowerShell on your PC:"
+    echo " -----------------------------------------------------------------"
+    echo " ssh -N -L 5133:127.0.0.1:$PORT -p $PINGGY_PORT root@$PINGGY_HOST"
+    echo " SSH Password : $SSH_PASSWORD (saved in .ssh_auth)"
+    echo " -----------------------------------------------------------------"
+    echo " 👉 Keep the SSH command running. Local API: http://localhost:5133/v1"
 else
-echo " ssh -N -L 5133:127.0.0.1:$PORT -p 2222 root@<colab-tunnel-host>"
+    echo " * Status: FAILED to obtain a Pinggy TCP endpoint."
+    echo " * Check the tunnel log below; do not use a placeholder hostname."
+    echo " -----------------------------------------------------------------"
+    tail -n 40 "$SSH_TUNNEL_LOG" 2>/dev/null || true
+    echo " -----------------------------------------------------------------"
 fi
-echo " SSH Password : $SSH_PASSWORD (saved in .ssh_auth)"
-echo " -----------------------------------------------------------------"
-echo " 👉 Once connected, open on your PC: http://localhost:5133"
 echo "=================================================================="
 echo ""
 echo "=================================================================="
 echo " 🌐 FEATURE 2: Local MoEBoost Custom API Provider (Separate Feature)"
 echo "=================================================================="
-echo " To use this Colab model inside your local MoEBoost (http://localhost:4133):"
-echo " 1. Connect via MoEBoost SSH Secure Connect above."
+echo " To use this Colab model inside your local MoEBoost:"
+echo " 1. Connect using the SSH command above."
 echo " 2. In your local MoEBoost UI -> About -> Custom API Provider:"
 echo "    - Base URL : http://localhost:5133/v1"
-echo "    - API Key  : (not needed, secure SSH tunnel protects it)"
+echo "    - API Key  : not needed for the SSH-forwarded localhost endpoint"
 echo " 3. Click 'Connect & Fetch Models' -> Select model -> Switch!"
 echo "=================================================================="
 
@@ -296,13 +310,15 @@ echo " Type '/exit' or '/quit' to close chat. Type '/reset' to clear history."
 echo "=================================================================="
 echo ""
 
-python3 - <<EOF
+CHATBOX_SCRIPT="$ROOT_DIR/moeboost_chatbox.py"
+cat > "$CHATBOX_SCRIPT" <<'PYCHAT'
 import sys
 import json
 import urllib.request
 import urllib.error
 
-API_URL = "http://127.0.0.1:$PORT/v1/chat/completions"
+port = int(sys.argv[1]) if len(sys.argv) > 1 else 4133
+API_URL = f"http://127.0.0.1:{port}/v1/chat/completions"
 history = []
 
 print("⚡ Chatbox ready! Enter your message below:")
@@ -362,4 +378,10 @@ while True:
         history.append({"role": "assistant", "content": full_response})
     except Exception as e:
         print(f"\n[Error communicating with server: {e}]")
-EOF
+PYCHAT
+if [ -t 0 ]; then
+    python3 "$CHATBOX_SCRIPT" "$PORT"
+else
+    echo "[i] Interactive chatbox skipped: this Colab cell has no interactive terminal stdin."
+    echo "[i] Use the SSH-forwarded API from your local Colibri at http://localhost:5133/v1."
+fi

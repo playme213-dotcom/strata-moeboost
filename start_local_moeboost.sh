@@ -9,13 +9,13 @@ VENV_DIR="$SCRIPT_DIR/.venv"
 PYTHON_BIN="$VENV_DIR/bin/python"
 
 # Default Model and Options
-MODEL_FILE="${1:-/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf}"
+MODEL_FILE="${1:-}"
 PORT="${2:-4133}"
 HOST="${3:-127.0.0.1}"
 
 echo "=================================================================="
 echo " Starting Strata-MoEBoost Server"
-echo " Model : $MODEL_FILE"
+echo " Model : ${MODEL_FILE:-auto-detect from ~/strata-moeboost/model}"
 echo " Host  : $HOST"
 echo " Port  : $PORT"
 echo " Directory: $SCRIPT_DIR"
@@ -62,16 +62,16 @@ else
 fi
 
 # Check model existence
-if [[ ! -f "$MODEL_FILE" ]]; then
+if [[ -n "$MODEL_FILE" && ! -f "$MODEL_FILE" ]]; then
     echo "Warning: Model file not found at $MODEL_FILE"
-    echo "Proceeding anyway (server can load models via GUI/API)."
+    echo "Proceeding with the explicit path; verify it before loading."
 fi
 
 cd "$SCRIPT_DIR"
 
-exec "$PYTHON_BIN" strata_moeboost_server.py \
-    --model "$MODEL_FILE" \
-    --host "$HOST" \
-    --port "$PORT" \
-    --low-spec \
-    --ctx 2048
+ARGS=(--host "$HOST" --port "$PORT" --low-spec --ctx 2048)
+if [[ -n "$MODEL_FILE" ]]; then
+    ARGS+=(--model "$MODEL_FILE")
+fi
+
+exec "$PYTHON_BIN" strata_moeboost_server.py "${ARGS[@]}"

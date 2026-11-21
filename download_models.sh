@@ -9,7 +9,10 @@
 
 set -e
 
-DEST_DIR="${MODEL_DIR:-/media/local-ai/Model}"
+DEST_DIR="${MODEL_DIR:-${HOME}/strata-moeboost/model}"
+if [[ "$DEST_DIR" == "~/"* ]]; then
+    DEST_DIR="$HOME/${DEST_DIR#~/}"
+fi
 mkdir -p "$DEST_DIR"
 
 # Ensure aria2c, wget, or curl is available

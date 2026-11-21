@@ -131,7 +131,7 @@
         <!-- filled by app.js: Speed, GPU load, VRAM, GPU temp, Power, PCIe, CPU, Disk read -->
       </div>
 
-      
+
       <!-- MoEBoost Expert Pager & Tier Telemetry -->
       <div class="st-card moeboost-card" style="border-left: 3px solid #59d6cb; margin-bottom: 12px;">
         <div class="req-head">
@@ -249,19 +249,19 @@
   <!-- ============================ Downloads ============================ -->
   <section class="view view--download" id="view-download" role="tabpanel" aria-labelledby="tab-btn-download" style="overflow-y:auto; height:100%;" hidden>
     <div class="about" style="max-width:880px; margin:0 auto; padding-bottom: 60px;">
-      
+
       <div class="st-card" style="border-left: 3px solid #60a5fa; margin-bottom:15px;">
         <div class="req-head">
           <span class="card-title" style="color:#60a5fa;">📥 MoE Model Downloader</span>
           <span class="muted small">HotRod Flash-Next & SOTA MoE Catalog</span>
         </div>
-        <p class="muted small" style="margin-top:6px;">Direct download high-performance Mixture of Experts models with multi-connection resume. Downloaded models are placed directly into your high-speed SSD model directory.</p>
+        <p class="muted small" style="margin-top:6px;">Direct download high-performance Mixture of Experts models with multi-connection resume. The default download and model directory is detected automatically (~/strata-moeboost/model).</p>
 
         <!-- Destination Directory Setting -->
         <div style="margin: 12px 0; padding:10px 12px; background:rgba(255,255,255,0.02); border:1px solid #2b384e; border-radius:6px;">
           <label class="st-label" for="dl-dest-dir" style="margin-bottom:4px; font-weight:600; color:#93c5fd;">📁 Download Destination Location (SSD/NVMe):</label>
           <div style="display:flex; gap:8px;">
-            <input type="text" id="dl-dest-dir" class="st-input" style="flex:1; padding:6px 10px; font-family:monospace; font-size:13px;" value="/media/local-ai/Model">
+            <input type="text" id="dl-dest-dir" class="st-input" style="flex:1; padding:6px 10px; font-family:monospace; font-size:13px;" value="">
             <button class="st-btn st-btn--secondary" type="button" id="dl-refresh-dir-btn">Verify SSD</button>
           </div>
           <div id="dl-dir-hint" class="muted small" style="margin-top:4px;">Targeting fast NVMe disk for optimal MoE tier caching.</div>
@@ -422,7 +422,7 @@
             <span class="muted small" id="api-model-count">Loading models...</span>
           </div>
           <p class="muted small" style="margin-bottom: 8px;">Select a local model or connect an external OpenAI-compatible API provider (OpenRouter, Ollama, vLLM, Groq, DeepSeek, etc.):</p>
-          
+
           <!-- Provider Connection Config (Collapsible) -->
           <details id="provider-details" style="margin-bottom: 10px; background: rgba(255,255,255,0.02); border: 1px solid #2b384e; border-radius: 6px; padding: 6px 10px;">
             <summary style="font-weight: 600; font-size: 12px; color: #60a5fa; cursor: pointer;">🔌 Configure External API Provider</summary>
@@ -574,11 +574,11 @@
         });
         updateContextLimitHint();
       } else {
-        sel.innerHTML = '<option value="/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf">cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf (13.4 GB)</option>';
+        sel.innerHTML = '<option value="" disabled selected>No GGUF models found — download or place a model in the detected model directory.</option>';
         updateContextLimitHint();
       }
     } catch(e) {
-      sel.innerHTML = '<option value="/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf">cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf (13.4 GB)</option>';
+      sel.innerHTML = '<option value="" disabled selected>Could not load model list. Check the local server.</option>';
       updateContextLimitHint();
     }
 

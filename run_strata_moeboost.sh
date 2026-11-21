@@ -11,7 +11,7 @@ else
     PYTHON_BIN="python"
 fi
 
-MODEL="${1:-/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf}"
+MODEL="${1:-}"
 PORT="${2:-4133}"
 GPU_LAYERS="$3"
 THREADS="$4"
@@ -24,12 +24,13 @@ fi
 
 echo "=========================================================="
 echo " Starting Strata-MoEBoost by Gravitize.IGP"
-echo " Model:       $MODEL"
+echo " Model:       ${MODEL:-auto-detect from ~/strata-moeboost/model}"
 echo " Port:        $PORT"
 echo " Low-Spec:    ${LOW_SPEC_FLAG:-auto-detecting hardware profile}"
 echo "=========================================================="
 
-ARGS=("--model" "$MODEL" "--port" "$PORT")
+ARGS=("--port" "$PORT")
+[ -n "$MODEL" ] && ARGS+=("--model" "$MODEL")
 [ -n "$GPU_LAYERS" ] && ARGS+=("--gpu-layers" "$GPU_LAYERS")
 [ -n "$THREADS" ] && ARGS+=("--threads" "$THREADS")
 [ -n "$BATCH" ] && ARGS+=("--batch" "$BATCH")

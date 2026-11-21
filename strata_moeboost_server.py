@@ -42,6 +42,91 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "moeboost_engine"))
 
+
+def _expand_user_path(value: str | Path) -> Path:
+    """Expand ~ and environment variables in a user-selected storage path."""
+    return Path(os.path.expandvars(os.path.expanduser(str(value)))).resolve()
+
+
+def _has_model_files(directory: Path) -> bool:
+    try:
+        return directory.is_dir() and any(
+            item.is_file() and item.suffix.lower() == ".gguf"
+            and "draft" not in item.name.lower()
+            for item in directory.iterdir()
+        )
+    except OSError:
+        return False
+
+
+def get_model_storage_dir() -> Path:
+    """Resolve the model/download directory, preferring ~/strata-moeboost/model.
+
+    Existing model directories are detected automatically so installations using
+    the former `models/` or `/media/local-ai/Model` locations keep working.
+    STRATA_MODEL_DIR can explicitly override the default.
+    """
+    override = (os.environ.get("STRATA_MODEL_DIR") or os.environ.get("MODEL_DIR") or "").strip()
+    if override:
+        return _expand_user_path(override)
+
+    preferred = Path.home() / "strata-moeboost" / "model"
+    candidates = [
+        preferred,
+        ROOT / "model",
+        ROOT / "models",
+        Path("/media/local-ai/Model"),
+        Path("/home/local-ai/strata-moeboost/models"),
+    ]
+    seen: set[str] = set()
+    for candidate in candidates:
+        resolved = _expand_user_path(candidate)
+        key = str(resolved)
+        if key not in seen:
+            seen.add(key)
+            if _has_model_files(resolved):
+                return resolved
+    return _expand_user_path(preferred)
+
+
+def get_model_search_dirs() -> list[Path]:
+    """Return deduplicated model locations, with the resolved default first."""
+    candidates = [
+        get_model_storage_dir(),
+        ROOT / "model",
+        ROOT / "models",
+        Path("/media/local-ai/Model"),
+        Path("/media/local-ai/Model/download"),
+        Path("/media/local-ai"),
+        Path("/home/local-ai/strata-moeboost/models"),
+        Path("/home/local-ai"),
+    ]
+    result: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        resolved = _expand_user_path(candidate)
+        if str(resolved) not in seen:
+            seen.add(str(resolved))
+            result.append(resolved)
+    return result
+
+
+def find_default_model_file() -> Path | None:
+    """Find an installed GGUF model in the resolved model directories."""
+    for directory in get_model_search_dirs():
+        if directory.is_dir():
+            try:
+                files = sorted(
+                    (p for p in directory.glob("*.gguf") if p.is_file()
+                     and "draft" not in p.name.lower()),
+                    key=lambda p: p.name.lower(),
+                )
+            except OSError:
+                files = []
+            if files:
+                return files[0]
+    return None
+
 from serve.telemetry import Telemetry
 
 # Optional llama-cpp imports (only used in legacy fallback mode)
@@ -91,7 +176,7 @@ class TurboHotRodRAMCache(LlamaRAMCache):
         if _key is None:
             self.misses += 1
             raise KeyError("Key not found")
-        
+
         self.hits += 1
         self.restores += 1
         self.last_hit_at = time.time()
@@ -100,7 +185,7 @@ class TurboHotRodRAMCache(LlamaRAMCache):
         self.reused_tokens += reused_len
         self.last_reused_count = reused_len
         self.last_prompt_count = len(t_key)
-        
+
         val = self.cache_state[_key]
         self.cache_state.move_to_end(_key)
         return val
@@ -158,7 +243,7 @@ class AppState:
     kv_cache_type: str = "q4_0"
     mtp_mode: str = "auto"
     low_spec: bool = True
-    models_dir: str = "/media/local-ai/Model"
+    models_dir: str = str(get_model_storage_dir())
     start_time: float = time.time()
     recent_requests: list[dict] = []
     # Custom External API Provider Configuration
@@ -234,7 +319,7 @@ async def metrics(requests: str = ""):
 
     # Format live dict exactly matching renderMonitor in app.js
     current_state = state.stats.get("state", "idle")
-    
+
     # Calculate real-time tok/s during active generation or fallback to last known tok/s
     if current_state == "generating":
         elapsed = max(0.001, now_ts - state.cur_gen_start) if state.cur_gen_start else 0.001
@@ -360,7 +445,7 @@ async def metrics(requests: str = ""):
             # Rows format:
             # First n_gpu_layers: '2' (VRAM White)
             # Remaining layers: '1' (Host RAM Green), '4' (Idle Gray), '0' (SSD Red)
-            "rows": (["2" * 103] * state.n_gpu_layers) + 
+            "rows": (["2" * 103] * state.n_gpu_layers) +
                     (["1" * 70 + "4" * 25 + "0" * 8] * (48 - state.n_gpu_layers))
         },
         "timeline": None
@@ -433,7 +518,7 @@ def inspect_moe_architecture(model_path: str | Path) -> tuple[bool, str, int, in
                 n_tensors, n_kv = struct.unpack("<II", f.read(8))
             else:
                 n_tensors, n_kv = struct.unpack("<QQ", f.read(16))
-            
+
             kv = {}
             for _ in range(n_kv):
                 k_len, = struct.unpack("<Q", f.read(8))
@@ -489,7 +574,7 @@ def inspect_moe_architecture(model_path: str | Path) -> tuple[bool, str, int, in
                     exp_cnt = v
                 elif "expert_used_count" in k and isinstance(v, int):
                     exp_used = v
-            
+
             is_moe = ("moe" in str(arch).lower() or "exp" in str(arch).lower() or exp_cnt > 1 or "flash-next" in Path(model_path).name.lower())
             return is_moe, str(arch), exp_cnt or 103, exp_used or 8
     except Exception:
@@ -526,14 +611,7 @@ def is_path_on_ssd(file_path: str | Path) -> bool:
 @app.get("/api/models")
 async def list_models_api(ssd_only: bool = True, moe_only: bool = True):
     models = []
-    scan_dirs = [
-        Path(state.models_dir),
-        Path("/media/local-ai/Model"),
-        Path("/media/local-ai/Model/download"),
-        Path("/media/local-ai"),
-        Path("/home/local-ai/strata-moeboost/models"),
-        Path("/home/local-ai")
-    ]
+    scan_dirs = get_model_search_dirs()
     seen_paths = set()
     seen_names = set()
 
@@ -607,11 +685,11 @@ async def list_models_api(ssd_only: bool = True, moe_only: bool = True):
                 legacy_draft = f_real.parent / "draft.gguf"
                 ple_file = f_real.parent / "Qwen3.8-Flash-Next-PLE-IQ4_NL.gguf"
                 mtp_draft_file = f_real.parent / "mtp-Qwen3.8-Flash-Next-draft.gguf"
-                
+
                 is_ple = "ple" in name_lower and not ("nople" in name_lower or "-nople" in name_lower)
                 has_ple = ple_file.exists() or not ("nople" in name_lower or "-nople" in name_lower)
                 mtp_supported = model_specific_draft.exists() or legacy_draft.exists() or mtp_draft_file.exists() or "cerebras" in name_lower or "qwen" in name_lower or "flash" in name_lower
-                
+
                 ple_mtp_desc = "PLE / MTP Ready"
                 if is_ple:
                     ple_mtp_desc = "PLE Table (NVMe Stream)"
@@ -659,10 +737,10 @@ async def list_models_api(ssd_only: bool = True, moe_only: bool = True):
 
 @app.get("/api/models/check")
 async def check_model_support(path: str):
-    p = Path(path)
+    p = _expand_user_path(path)
     if not p.exists():
         raise HTTPException(status_code=404, detail="Model file not found")
-    
+
     is_moe, arch, exp_cnt, exp_used = inspect_moe_architecture(p)
     size_gb = round(p.stat().st_size / (1024**3), 2)
 
@@ -712,7 +790,7 @@ async def check_model_support(path: str):
     dense_in_vram = hw_plan.get("dense_in_vram", True)
     vram_free = hw_plan.get("vram_free_mb", 3000)
     headroom = hw_plan.get("vram_headroom_mb", 300)
-    
+
     applicable = True
     if has_dense_bin and dense_in_vram and (dense_size_mb + headroom > vram_free):
         applicable = False
@@ -753,7 +831,7 @@ async def optimize_quantize(req: QuantizeRequest):
     from strata_optimizer import quantize_model, QUANT_PRESETS
     if req.preset not in QUANT_PRESETS:
         raise HTTPException(status_code=400, detail=f"Invalid preset. Choose from: {list(QUANT_PRESETS.keys())}")
-    inp = Path(req.model_path)
+    inp = _expand_user_path(req.model_path)
     if not inp.exists():
         raise HTTPException(status_code=404, detail="Model not found")
 
@@ -854,7 +932,7 @@ async def fetch_provider_models(req: ProviderConfigRequest):
         req_obj = urllib.request.Request(models_url, headers=headers)
         with urllib.request.urlopen(req_obj, timeout=10) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-        
+
         models_list = []
         raw_list = data.get("data", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
         for item in raw_list:
@@ -875,7 +953,7 @@ async def fetch_provider_models(req: ProviderConfigRequest):
 @app.post("/api/models/load")
 async def load_model_api(req: ModelLoadRequest):
     """Dynamically loads or switches model in memory with MTP draft support."""
-    p = Path(req.model_path)
+    p = _expand_user_path(req.model_path)
     if not p.exists():
         raise HTTPException(status_code=404, detail="Model file not found")
 
@@ -932,11 +1010,14 @@ async def unload_model_api():
 async def restart_server_api():
     """Triggers an in-process reload and memory reclamation of the active model and cache."""
     try:
+        restart_model_path = state.model_path or find_default_model_file()
+        if restart_model_path is None:
+            raise HTTPException(status_code=409, detail=f"No model found in {get_model_storage_dir()}")
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None,
             load_model,
-            state.model_path or "/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf",
+            str(restart_model_path),
             state.n_gpu_layers,
             state.n_threads,
             state.n_ctx,
@@ -1154,7 +1235,7 @@ DOWNLOAD_CATALOG = [
 download_job = {
     "status": "idle",
     "filename": "",
-    "download_dir": "/media/local-ai/Model",
+    "download_dir": str(get_model_storage_dir()),
     "percent": 0.0,
     "speed": "",
     "error": None
@@ -1162,18 +1243,18 @@ download_job = {
 
 @app.get("/api/downloads/catalog")
 async def get_download_catalog():
-    # Detect default destination directory on SSD if available
-    default_dir = "/media/local-ai/Model" if Path("/media/local-ai/Model").exists() else "/home/local-ai/strata-moeboost/models"
+    # Use the same automatically detected directory for model discovery and downloads.
+    default_dir = str(get_model_storage_dir())
     # Annotate already downloaded status
     items = []
     for m in DOWNLOAD_CATALOG:
         target_f = Path(default_dir) / m["filename"]
-        alt_f = Path("/media/local-ai/Model") / m["filename"]
-        installed = target_f.exists() or alt_f.exists()
+        alternate_files = [directory / m["filename"] for directory in get_model_search_dirs()]
+        installed_path = next((candidate for candidate in [target_f, *alternate_files] if candidate.is_file()), None)
         items.append({
             **m,
-            "installed": installed,
-            "installed_path": str(target_f if target_f.exists() else alt_f) if installed else None
+            "installed": installed_path is not None,
+            "installed_path": str(installed_path) if installed_path is not None else None
         })
     return {
         "catalog": items,
@@ -1266,9 +1347,11 @@ async def start_download(req: StartDownloadRequest):
     if download_job["status"] == "downloading":
         raise HTTPException(status_code=409, detail="A download is already in progress.")
 
-    dest_dir = req.download_dir or "/media/local-ai/Model"
-    Path(dest_dir).mkdir(parents=True, exist_ok=True)
-    dest_path = Path(dest_dir) / req.filename
+    requested_dir = (req.download_dir or "").strip()
+    dest_dir_path = _expand_user_path(requested_dir) if requested_dir else get_model_storage_dir()
+    dest_dir_path.mkdir(parents=True, exist_ok=True)
+    dest_dir = str(dest_dir_path)
+    dest_path = dest_dir_path / Path(req.filename).name
 
     download_job["filename"] = req.filename
     download_job["download_dir"] = dest_dir
@@ -1322,7 +1405,7 @@ def execute_moeboost_native_tool(tool_name: str, args: dict) -> tuple[str, bool]
     cli_bin = Path("/home/local-ai/moeboost_tools_cpp/moeboost_cli")
     if not cli_bin.exists():
         return f"Tool binary not found at {cli_bin}", False
-    
+
     xml_parts = [f"<tool_call>", f"<function={tool_name}>"]
     for k, v in args.items():
         val_str = str(v) if not isinstance(v, (dict, list)) else json.dumps(v)
@@ -1330,7 +1413,7 @@ def execute_moeboost_native_tool(tool_name: str, args: dict) -> tuple[str, bool]
     xml_parts.append("</function>")
     xml_parts.append("</tool_call>")
     payload = "\n".join(xml_parts)
-    
+
     try:
         t0 = time.time()
         proc = subprocess.run(
@@ -1497,7 +1580,7 @@ async def get_mcp():
 async def v1_models():
     """OpenAI-compatible models catalog listing active and available models."""
     model_entries = []
-    
+
     # 1. Primary active loaded model
     active_id = state.model_name or "cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS"
     model_entries.append({
@@ -1590,12 +1673,19 @@ async def warm_prefill(req: ChatCompletionRequest):
         "reused": 0
     }
 
+def _select_provider_model(requested_model: str | None, configured_model: str | None) -> str:
+    """Prefer the provider's real model ID over the GUI's display-model label."""
+    return (configured_model or requested_model or "default").strip() or "default"
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest):
     # Proxy to External Custom API Provider if enabled
     if state.custom_provider_enabled and state.custom_provider_url:
         provider_url = f"{state.custom_provider_url}/chat/completions"
-        effective_model = req.model or state.custom_provider_model or "default"
+        # state.model_name may be a GUI label such as "[API] <model-id>".
+        # The provider-configured ID must win so that label is never sent upstream.
+        effective_model = _select_provider_model(req.model, state.custom_provider_model)
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "Strata-MoEBoost-Proxy/0.2.0"
@@ -2075,7 +2165,7 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
         print(f"[Strata-MoEBoost] KV Cache Quantization: {effective_kv} (type_k={kv_type_k}, type_v={kv_type_v})")
     except Exception:
         pass
-    
+
     # Auto-calibrate if parameters are not explicitly forced
     # Low-Spec Preferred Tier 2 enforcement: zero experts in VRAM, 300MB VRAM headroom
     if hw_plan.get("tier") in ("low_spec_preferred", "ultra_low") or effective_low_spec:
@@ -2098,7 +2188,7 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
         final_ctx = min(base_ctx, model_ctx_limit)
         final_mlock = hw["recommended_use_mlock"]
         cache_bytes = hw["recommended_cache_mb"] * 1024 * 1024
-        
+
         # High-End / Frontier Spec Optimization:
         # For Tier 4 and Tier 5 (>=12GB VRAM), unlock maximum compute saturation:
         # Increase batch processing capacity to saturate Tensor Cores and prevent CUDA queue starvation
@@ -2245,7 +2335,8 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
 
 def main():
     parser = argparse.ArgumentParser(description="Strata-MoEBoost Inference Server by Gravitize.IGP")
-    parser.add_argument("--model", type=str, default="/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf")
+    parser.add_argument("--model", type=str, default=None,
+                        help="GGUF model path (auto-detected from the model directory when omitted)")
     parser.add_argument("--gpu-layers", type=int, default=None)
     parser.add_argument("--threads", type=int, default=None)
     parser.add_argument("--batch", type=int, default=None)
@@ -2256,8 +2347,15 @@ def main():
     parser.add_argument("--port", type=int, default=4133)
     args = parser.parse_args()
 
+    model_path = _expand_user_path(args.model) if args.model else find_default_model_file()
+    if model_path is None or not model_path.is_file():
+        parser.error(
+            f"No GGUF model found. Put a model in {get_model_storage_dir()} "
+            "or pass --model /path/to/model.gguf. Set STRATA_MODEL_DIR to override the folder."
+        )
+
     load_model(
-        args.model,
+        str(model_path),
         n_gpu_layers=args.gpu_layers,
         n_threads=args.threads,
         n_ctx=args.ctx,

@@ -241,7 +241,7 @@ function renderResidency(r) {
   const cw = bcols * (blockW + blockMargin);
   const ch = brows * (blockH + blockMargin);
   if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
-  
+
   // Custom MoEBoost Color Spectrum:
   // 0: SSD Archive (RED #e05252)
   // 1: Host RAM Spillway (GREEN #34d399)
@@ -272,7 +272,7 @@ function renderResidency(r) {
     for (let e = 0; e < n; e++) {
       const code = row.charCodeAt(e) - 48;
       const cellColor = (code >= 0 && code < colors.length) ? colors[code] : "#64748b";
-      
+
       const colInBlock = e % bw;
       const rowInBlock = Math.floor(e / bw);
       const cx = bx + colInBlock * (cellSize + cellGap);
@@ -665,7 +665,7 @@ function renderMonitor(live, hw, st, eng, h, last, requests, totals, kept) {
   setMetric("temp", hw.gpu_temp == null ? null : fmt(hw.gpu_temp), "°C",
             multi ? per((g) => (g.temp == null ? "–" : `${fmt(g.temp)}°`)) : "");
   spark("sp-temp", h.gpu_temp, 90);
-  
+
   // Power card upgraded to: RAM read speed monitor (like Disk read)
   const ramReadMb = hw.ram_read_mb != null ? hw.ram_read_mb : (live.tok_s ? live.tok_s * 720.0 : 0.0);
   const ramReadGb = ramReadMb / 1024.0;
@@ -1933,7 +1933,7 @@ async function loadDownloadsTab() {
 }
 
 async function triggerDownload(url, filename, shards = null) {
-  const destDir = $("dl-dest-dir") ? $("dl-dest-dir").value.trim() : "/media/local-ai/Model";
+  const destDir = $("dl-dest-dir") ? $("dl-dest-dir").value.trim() : "";
   const label = shards && shards.length > 1 ? `${filename} (${shards.length} shards continuous)` : filename;
   if (!confirm(`Download ${label} to ${destDir}?`)) return;
 

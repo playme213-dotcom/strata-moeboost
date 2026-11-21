@@ -4,6 +4,13 @@
 
 <h1 align="center">Strata-HotRod</h1>
 
+### MoEBoost model storage
+
+The local MoEBoost server and model downloader use `~/strata-moeboost/model` by default.
+The server automatically detects existing models in the previous `models/` and `/media/local-ai/Model` locations,
+so existing GGUF files remain discoverable. To use another directory, set `STRATA_MODEL_DIR` (or `MODEL_DIR`)
+before starting the server. If `--model` is omitted, the server selects an installed GGUF model automatically.
+
 <h2 align="center">111 GB of model. 30 GB of RAM. 12 GB of VRAM. Zero cloud.</h2>
 
 <p align="center"><b>A 125-billion-parameter AI on one gaming card, streaming from your SSD.</b><br>
