@@ -238,17 +238,18 @@ else
 fi
 echo ""
 echo " 💻 2. CONNECT FROM YOUR PC USING SSH (Zero Signup, No ngrok):"
-echo "    Run this command in terminal / PowerShell on your PC:"
+echo "    If you run MoEBoost on your PC too, map to a non-conflicting port (e.g. 5133):"
 echo "    --------------------------------------------------------------"
 if [ -n "$SSH_TUNNEL_HOST" ]; then
-echo "    ssh -N -L $PORT:127.0.0.1:$PORT -p 2222 root@$SSH_TUNNEL_HOST"
+echo "    ssh -N -L 5133:127.0.0.1:$PORT -p 2222 root@$SSH_TUNNEL_HOST"
 else
-echo "    ssh -N -L $PORT:127.0.0.1:$PORT nokey@localhost.run"
+echo "    ssh -N -L 5133:127.0.0.1:$PORT nokey@localhost.run"
 fi
 echo "    Password : $SSH_PASSWORD (saved in .ssh_auth)"
 echo "    --------------------------------------------------------------"
-echo "    👉 Once running, open on your PC: http://localhost:$PORT"
-echo "       (Ultra-low latency, unlimited bandwidth, streams directly)"
+echo "    👉 Local MoEBoost : http://localhost:4133"
+echo "    👉 Colab MoEBoost : http://localhost:5133"
+echo "       (Both can run simultaneously without any port conflict!)"
 echo "=================================================================="
 
 # Step 6: Interactive Terminal Chatbox on the last part
