@@ -152,39 +152,44 @@ def compute_plan(vram_headroom_mb: int = 300, override_vram_mb: int | None = Non
 
     # =========================================================================
     # Tier 4: High-Spec Extended (12GB-16GB VRAM, RTX 4070/3080/4080 + 32-64GB RAM)
-    # Target ~4,200 MB for helper chairs
+    # Target ~6,500 MB for helper chairs
     # =========================================================================
     elif vram_tot <= 16384:
-        target_chairs_mb = 4200.0
-        slots = max(512, int(target_chairs_mb / expert_size_mb))
+        target_chairs_mb = 6500.0
+        slots = max(1024, int(target_chairs_mb / expert_size_mb))
         actual_mb = round(slots * expert_size_mb, 1)
 
         plan["tier"] = "high_spec"
         plan["tier_name"] = f"Tier 4: High-Spec Extended ({slots} Helper Chairs + 32-64GB RAM)"
         plan["dense_in_vram"] = True
-        plan["kv_format"] = "k8v4"          # Exact INT8 K + rotated Q4_0 V
+        plan["kv_format"] = "q8_0"          # High-precision Q8_0 KV cache
         plan["max_context"] = 8192
         plan["prefill"] = 64
-        plan["resident_budget_gib"] = "16.0" if ram_tot >= 48000 else "10.0"
+        plan["resident_budget_gib"] = "24.0" if ram_tot >= 48000 else "16.0"
         plan["expert_cache_slots"] = str(slots)
         plan["chairs_vram_mb"] = actual_mb
         plan["vram_reserve_mb"] = vram_headroom_mb
-        plan["summary"] = f"High-Spec Extended (12GB-16GB VRAM): Dense + {slots} Helper Chairs ({actual_mb}MB @ {expert_size_mb}MB/exp), 8192 ctx (k8v4), {plan['resident_budget_gib']}GB expert RAM"
+        plan["summary"] = f"High-Spec Extended (12GB-16GB VRAM): Dense + {slots} Helper Chairs ({actual_mb}MB @ {expert_size_mb}MB/exp), 8192 ctx (q8_0), {plan['resident_budget_gib']}GB expert RAM, zero host-device stall"
 
     # =========================================================================
     # Tier 5: Frontier Pro / Workstation (24GB - 48GB+ VRAM, RTX 3090/4090 / A6000)
     # =========================================================================
     else:
+        target_chairs_mb = max(14000.0, (vram_tot - 8000.0))
+        slots = max(2048, int(target_chairs_mb / expert_size_mb))
+        actual_mb = round(slots * expert_size_mb, 1)
+
         plan["tier"] = "frontier_pro"
-        plan["tier_name"] = "Tier 5: Frontier Pro / Full GPU Residency (24GB-48GB+ VRAM)"
+        plan["tier_name"] = f"Tier 5: Frontier Pro / Full GPU Residency ({slots} Chairs + {vram_tot // 1024}GB VRAM)"
         plan["dense_in_vram"] = True
-        plan["kv_format"] = "int8"
+        plan["kv_format"] = "f16"           # Uncompressed full precision KV cache
         plan["max_context"] = 16384
         plan["prefill"] = 128
-        plan["resident_budget_gib"] = "auto"
-        plan["expert_cache_slots"] = "auto"
+        plan["resident_budget_gib"] = "32.0"
+        plan["expert_cache_slots"] = str(slots)
+        plan["chairs_vram_mb"] = actual_mb
         plan["vram_reserve_mb"] = vram_headroom_mb
-        plan["summary"] = "Frontier Pro: Full Model / Maximum Experts resident on GPU VRAM, 16k ctx, MTP draft active"
+        plan["summary"] = f"Frontier Pro: Full Model / Maximum Experts resident in VRAM ({slots} chairs, {actual_mb}MB), 16k ctx (f16), async CUDA streams, MTP draft active"
 
     return plan
 

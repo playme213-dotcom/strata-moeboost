@@ -64,7 +64,12 @@ class UnpackedMoELoader:
                  shard2_path: str | None = None,
                  pack_dir: str | None = None,
                  resident_budget_gib: float = 10.0,
-                 use_pager: bool = True):
+                 use_pager: bool = True,
+                 n_ctx: int = 4096,
+                 n_gpu_layers: int = 2,
+                 n_threads: int = 4,
+                 n_batch: int = 128,
+                 kv_cache_type: str = "q4_0"):
         self.gguf_path = Path(gguf_path)
         if not self.gguf_path.exists():
             raise FileNotFoundError(f"Model file not found: {gguf_path}")
@@ -73,6 +78,11 @@ class UnpackedMoELoader:
         self.pack_dir = Path(pack_dir or (ROOT / "pack" / self.gguf_path.stem))
         self.resident_budget_gib = resident_budget_gib
         self.use_pager = use_pager
+        self.n_ctx = n_ctx
+        self.n_gpu_layers = n_gpu_layers
+        self.n_threads = n_threads
+        self.n_batch = n_batch
+        self.kv_cache_type = kv_cache_type
         self.tensor_map: UnpackedTensorMap | None = None
         self.pager = None
         self.vocab: dict[str, int] = {}
@@ -143,12 +153,28 @@ class UnpackedMoELoader:
                 self._backend = None
             else:
                 print(f"[UnpackedLoader] Binding generative compute engine for {self.gguf_path.name}...")
+                kv_type_k = 2  # GGML_TYPE_Q4_0
+                kv_type_v = 2
+                try:
+                    from llama_cpp import GGML_TYPE_Q4_0, GGML_TYPE_Q8_0, GGML_TYPE_F16
+                    if self.kv_cache_type == "q8_0":
+                        kv_type_k = GGML_TYPE_Q8_0
+                        kv_type_v = GGML_TYPE_Q8_0
+                    elif self.kv_cache_type in ("f16", "fp16"):
+                        kv_type_k = GGML_TYPE_F16
+                        kv_type_v = GGML_TYPE_F16
+                except Exception:
+                    pass
+
                 self._backend = Llama(
                     model_path=str(self.gguf_path),
-                    n_ctx=1024,
-                    n_gpu_layers=2,
-                    n_threads=4,
-                    n_batch=128,
+                    n_ctx=self.n_ctx,
+                    n_gpu_layers=self.n_gpu_layers,
+                    n_threads=self.n_threads,
+                    n_batch=self.n_batch,
+                    type_k=kv_type_k,
+                    type_v=kv_type_v,
+                    flash_attn=True,
                     use_mmap=True,
                     verbose=False
                 )
@@ -173,7 +199,7 @@ class UnpackedMoELoader:
         words = [self.inv_vocab.get(t, "") for t in tokens]
         return " ".join(words).encode("utf-8")
 
-    def create_chat_completion(self, messages: list[dict], max_tokens: int = 512, temperature: float = 0.7, top_p: float = 0.9, stream: bool = False) -> Any:
+    def create_chat_completion(self, messages: list[dict], max_tokens: int = 512, temperature: float = 0.7, top_p: float = 0.9, stream: bool = False, **kwargs) -> Any:
         # If backend is available, execute real inference accelerated with unpacked buffers
         if self._backend:
             if self.pager:
@@ -186,7 +212,8 @@ class UnpackedMoELoader:
                 max_tokens=max_tokens,
                 temperature=temperature,
                 top_p=top_p,
-                stream=stream
+                stream=stream,
+                **kwargs
             )
 
         # Fallback when architecture exceeds hardware VRAM/RAM envelope

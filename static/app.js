@@ -752,14 +752,19 @@ function projectionText(c) {
          "describes the vector as a refusal-direction projection; measure the speed yourself";
 }
 function renderAbout(eng, hw, st) {
-  const kv = {int8: "8-bit", q4_0: "4-bit (Hadamard-rotated)", fp16: "16-bit"}[eng.kv] || eng.kv;
+  const kv = eng.kv_cache || ({int8: "8-bit", q4_0: "4-bit (Hadamard-rotated)", fp16: "16-bit"}[eng.kv] || eng.kv);
+  const engineLabel = eng.engine_mode ? eng.engine_mode : (eng.version ? `v${eng.version}` : "built from source");
   facts($("facts-engine"), [
     ["Model", eng.model],
-    ["Engine", eng.version ? `v${eng.version}` : "built from source"],
-    ["Context", eng.max_context ? `${fmt(eng.max_context)} tokens` : null],
-    ["KV cache", kv ? `${kv}${eng.kv_resident ? `, streamed: ${fmt(eng.kv_resident)} positions per layer in VRAM, the rest in RAM` : ", all in VRAM"}` : null],
+    ["Engine Architecture", engineLabel],
+    ["Context Budget", eng.max_context ? `${fmt(eng.max_context)} tokens` : null],
+    ["KV Cache Quant", kv ? `${kv}${eng.kv_resident ? `, streamed: ${fmt(eng.kv_resident)} positions per layer in VRAM, the rest in RAM` : ", in VRAM"}` : null],
+    ["Offload Layers", eng.gpu_layers != null ? `${eng.gpu_layers} layers in VRAM` : null],
+    ["CPU Threads", eng.threads != null ? `${eng.threads} threads` : null],
+    ["Micro-Batch Size", eng.batch_size != null ? `${eng.batch_size}` : null],
+    ["MTP Speculation", eng.mtp_mode ? `Mode: ${eng.mtp_mode}` : (eng.spec ? `MTP drafts up to ${Math.max(0, (eng.mtp_max || eng.spec) - 1)} tokens` : null)],
+    ["Low-Spec Profile", eng.low_spec_mode != null ? (eng.low_spec_mode ? "Active (Safe paging)" : "Disabled (Full performance)") : null],
     ["Experts in VRAM", eng.expert_slots ? `${fmt(eng.expert_slots)} (${gb((eng.expert_cache_mib || 0) * 1048576)} GB)` : null],
-    ["Speculation", eng.spec ? `MTP drafts up to ${Math.max(0, (eng.mtp_max || eng.spec) - 1)} tokens${eng.lookup ? ", prompt lookup on" : ""}` : null],
     ["Images", eng.images ? "on" : "off"],
     ["Experimental speed projection", projectionText(eng.cvec)],
   ]);
@@ -772,9 +777,252 @@ function renderAbout(eng, hw, st) {
   facts($("facts-api"), [
     ["OpenAI base URL", `${base}/v1`, true],
     ["Anthropic base URL", base, true],
-    ["Model name", eng.model, true],
+    ["Active Model ID", eng.model, true],
+    ["Custom API Catalog", `${base}/v1/models`, true],
   ]);
+  updateApiModelSelector(eng.model);
 }
+
+let apiModelsLoaded = false;
+async function updateApiModelSelector(currentModel) {
+  const sel = $("api-model-selector");
+  const quickSel = $("chat-quick-model");
+  const countEl = $("api-model-count");
+  if (!sel && !quickSel) return;
+
+  try {
+    const r = await fetch("/v1/models");
+    if (!r.ok) return;
+    const data = await r.json();
+    const list = data.data || [];
+    if (countEl) countEl.textContent = `${list.length} model${list.length === 1 ? '' : 's'} available`;
+    if (sel) sel.innerHTML = "";
+    if (quickSel) quickSel.innerHTML = "";
+    list.forEach(m => {
+      const isCurrent = m.id === currentModel || (currentModel && m.id.includes(currentModel));
+      if (sel) {
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = (isCurrent ? "🟢 [ACTIVE] " : "🔹 ") + m.id;
+        if (isCurrent) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      if (quickSel) {
+        const qOpt = document.createElement("option");
+        qOpt.value = m.id;
+        qOpt.textContent = (isCurrent ? "🟢 " : "") + m.id;
+        if (isCurrent) qOpt.selected = true;
+        quickSel.appendChild(qOpt);
+      }
+    });
+  } catch (e) {
+    if (countEl) countEl.textContent = "1 model available";
+  }
+}
+
+// Wire up Custom API selector and Provider controls
+document.addEventListener("DOMContentLoaded", () => {
+  const copyBtn = $("api-copy-model-btn");
+  const switchBtn = $("api-switch-model-btn");
+  const sel = $("api-model-selector");
+  const statusEl = $("api-model-status");
+  const provUrl = $("provider-base-url");
+  const provKey = $("provider-api-key");
+  const provFetchBtn = $("provider-fetch-btn");
+  const provResetBtn = $("provider-reset-btn");
+  const countEl = $("api-model-count");
+
+  // Restore saved provider config from server
+  fetch("/api/provider/config").then(r => r.json()).then(cfg => {
+    if (cfg && cfg.enabled && provUrl) {
+      provUrl.value = cfg.base_url || "";
+      if (document.getElementById("provider-details")) {
+        document.getElementById("provider-details").open = true;
+      }
+    }
+  }).catch(() => {});
+
+  if (provFetchBtn) {
+    provFetchBtn.addEventListener("click", async () => {
+      const url = provUrl ? provUrl.value.trim() : "";
+      const key = provKey ? provKey.value.trim() : "";
+      if (!url) {
+        alert("Please enter a valid Provider Endpoint (Base URL)");
+        return;
+      }
+      if (statusEl) {
+        statusEl.style.display = "block";
+        statusEl.style.color = "#60a5fa";
+        statusEl.textContent = `⏳ Connecting to ${url}...`;
+      }
+      try {
+        const resp = await fetch("/api/provider/models", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({base_url: url, api_key: key})
+        });
+        const out = await resp.json();
+        if (resp.ok && out.models) {
+          sel.innerHTML = "";
+          out.models.forEach(m => {
+            const opt = document.createElement("option");
+            opt.value = m.id;
+            opt.dataset.isExternal = "1";
+            opt.textContent = `🌐 [${url.split('/')[2] || 'Provider'}] ${m.id}`;
+            sel.appendChild(opt);
+          });
+          if (countEl) countEl.textContent = `${out.models.length} remote models loaded`;
+          if (statusEl) {
+            statusEl.style.color = "#79dfa0";
+            statusEl.textContent = `✓ Connected! Loaded ${out.models.length} models from provider.`;
+          }
+        } else {
+          if (statusEl) {
+            statusEl.style.color = "#ff7887";
+            statusEl.textContent = `Connection error: ${out.detail || 'Failed to fetch provider models'}`;
+          }
+        }
+      } catch (e) {
+        if (statusEl) {
+          statusEl.style.color = "#ff7887";
+          statusEl.textContent = `Connection error: ${e.message}`;
+        }
+      }
+    });
+  }
+
+  if (provResetBtn) {
+    provResetBtn.addEventListener("click", async () => {
+      if (provUrl) provUrl.value = "";
+      if (provKey) provKey.value = "";
+      await fetch("/api/provider/config", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({base_url: "", api_key: "", model: ""})
+      });
+      if (statusEl) {
+        statusEl.style.display = "block";
+        statusEl.style.color = "#79dfa0";
+        statusEl.textContent = "✓ Reset to local models.";
+        setTimeout(() => { window.location.reload(); }, 1000);
+      }
+    });
+  }
+
+  if (copyBtn && sel) {
+    copyBtn.addEventListener("click", () => {
+      if (sel.value) {
+        navigator.clipboard.writeText(sel.value).then(() => {
+          if (statusEl) {
+            statusEl.style.display = "block";
+            statusEl.style.color = "#79dfa0";
+            statusEl.textContent = `✓ Copied model ID "${sel.value}" to clipboard!`;
+            setTimeout(() => { statusEl.style.display = "none"; }, 3000);
+          }
+        });
+      }
+    });
+  }
+
+  if (switchBtn && sel) {
+    switchBtn.addEventListener("click", async () => {
+      const target = sel.value;
+      if (!target) return;
+      const selectedOpt = sel.options[sel.selectedIndex];
+      const isExternal = selectedOpt && selectedOpt.dataset.isExternal === "1";
+
+      if (isExternal) {
+        // Connect and activate external provider model
+        const url = provUrl ? provUrl.value.trim() : "";
+        const key = provKey ? provKey.value.trim() : "";
+        if (!confirm(`Set active chat provider to ${url} with model "${target}"?`)) return;
+        if (statusEl) {
+          statusEl.style.display = "block";
+          statusEl.style.color = "#60a5fa";
+          statusEl.textContent = `⏳ Engaging external provider: "${target}"...`;
+        }
+        try {
+          const resp = await fetch("/api/provider/config", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({base_url: url, api_key: key, model: target})
+          });
+          if (resp.ok) {
+            if (statusEl) {
+              statusEl.style.color = "#79dfa0";
+              statusEl.textContent = `✓ Now routing through external provider: "${target}"!`;
+            }
+            setTimeout(() => { window.location.reload(); }, 1200);
+          }
+        } catch (e) {
+          if (statusEl) {
+            statusEl.style.color = "#ff7887";
+            statusEl.textContent = `Provider activate error: ${e.message}`;
+          }
+        }
+        return;
+      }
+
+      if (!confirm(`Switch active API model to "${target}"?`)) return;
+      if (statusEl) {
+        statusEl.style.display = "block";
+        statusEl.style.color = "#60a5fa";
+        statusEl.textContent = `⏳ Switching API model to "${target}"...`;
+      }
+      try {
+        const resp = await fetch("/api/models/load", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({model_path: target, engine_mode: "auto"})
+        });
+        if (resp.ok) {
+          if (statusEl) {
+            statusEl.style.color = "#79dfa0";
+            statusEl.textContent = `✓ Switched to "${target}" successfully!`;
+          }
+          setTimeout(() => { window.location.reload(); }, 1200);
+        } else {
+          const err = await resp.json().catch(() => ({}));
+          if (statusEl) {
+            statusEl.style.color = "#ff7887";
+            statusEl.textContent = `Switch error: ${err.detail || resp.statusText}`;
+          }
+        }
+      } catch (e) {
+        if (statusEl) {
+          statusEl.style.color = "#ff7887";
+          statusEl.textContent = `Switch error: ${e.message}`;
+        }
+      }
+    });
+  }
+
+  // Quick Chat Model Selector Event
+  const quickSel = $("chat-quick-model");
+  if (quickSel) {
+    quickSel.addEventListener("change", async () => {
+      const target = quickSel.value;
+      if (!target) return;
+      toast("info", "Switching Chat Model", `Loading ${target}...`);
+      try {
+        const resp = await fetch("/api/models/load", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({model_path: target, engine_mode: "auto"})
+        });
+        if (resp.ok) {
+          toast("success", "Model Active", `Switched to ${target}`);
+          setTimeout(() => { window.location.reload(); }, 1200);
+        } else {
+          const err = await resp.json().catch(() => ({}));
+          toast("error", "Switch Error", err.detail || resp.statusText);
+        }
+      } catch(e) {
+        toast("error", "Switch Error", e.message);
+      }
+    });
+  }
+});
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-copy]");
   if (b) copyText(b.dataset.copy, b);

@@ -35,11 +35,17 @@
       <svg class="st-icon st-icon--sm"><use href="web/sprite.svg#i-info"/></svg>About</button>
   </nav>
   <span class="st-header__spacer"></span>
-  <!-- Active Loaded Model Badge -->
-  <span id="active-model-badge" style="display:inline-flex; align-items:center; gap:6px; padding:3px 10px; margin-right:8px; background:rgba(96,165,250,0.12); border:1px solid rgba(96,165,250,0.35); border-radius:14px; font-size:12px; font-weight:500; color:#93c5fd; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="Loaded Model">
-    <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#34d399; box-shadow:0 0 6px #34d399;"></span>
-    <span id="active-model-name">Loading...</span>
-  </span>
+  <!-- Active Loaded Model Badge & Direct Chat Switcher -->
+  <div style="display:inline-flex; align-items:center; gap:6px; margin-right:8px;">
+    <span id="active-model-badge" style="display:inline-flex; align-items:center; gap:6px; padding:3px 10px; background:rgba(96,165,250,0.12); border:1px solid rgba(96,165,250,0.35); border-radius:14px; font-size:12px; font-weight:500; color:#93c5fd; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="Loaded Model">
+      <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#34d399; box-shadow:0 0 6px #34d399;"></span>
+      <span id="active-model-name">Loading...</span>
+    </span>
+    <!-- Quick Chat Model Selector -->
+    <select id="chat-quick-model" style="display:inline-block; padding:3px 8px; font-size:11px; background:#121824; border:1px solid #2b384e; border-radius:12px; color:#cbd5e1; cursor:pointer; max-width:160px; text-overflow:ellipsis;" title="Select model for Chatting">
+      <option value="">Chat Model...</option>
+    </select>
+  </div>
   <span class="st-pill" id="pill" data-state="idle" role="status" aria-live="polite">
     <span class="st-pill__dot"></span><span id="pill-text">Connecting&hellip;</span></span>
   <button class="st-btn st-btn--icon" id="theme-btn" title="Light / dark" aria-label="Switch between light and dark">
@@ -336,6 +342,19 @@
                 <option value="llama">Standard GGUF Mode</option>
               </select>
             </div>
+            <div>
+              <label class="muted small" style="display:block; margin-bottom:2px;">Context Limit (tokens):</label>
+              <input type="number" id="load-context" class="st-input" style="width:100%; padding:4px 8px; font-size:12px;" placeholder="Auto (2048)" min="512" max="32768" step="512">
+              <span class="muted small" id="load-ctx-hint" style="font-size:10px; display:block; margin-top:2px;">Model max: detecting…</span>
+            </div>
+            <div>
+              <label class="muted small" style="display:block; margin-bottom:2px;">KV Cache Quant:</label>
+              <select id="load-kv-quant" class="st-input" style="width:100%; padding:4px 8px; font-size:12px; background:#121824;">
+                <option value="q4_0" selected>Q4_0 — Compact (default, saves VRAM)</option>
+                <option value="q8_0">Q8_0 — Balanced (better accuracy)</option>
+                <option value="f16">F16 — Full Precision (most VRAM)</option>
+              </select>
+            </div>
           </div>
           <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
             <input type="checkbox" id="load-low-spec" style="cursor:pointer;">
@@ -395,6 +414,44 @@
         <span class="card-title">Connect your tools</span>
         <p class="muted">Any OpenAI- or Anthropic-compatible client works with these addresses.</p>
         <dl class="facts" id="facts-api"></dl>
+
+        <!-- Custom API Provider & Model Selector -->
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
+          <div style="font-weight: 600; font-size: 13px; color: #93c5fd; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+            <span>🌐 Custom API Provider & Model Selector</span>
+            <span class="muted small" id="api-model-count">Loading models...</span>
+          </div>
+          <p class="muted small" style="margin-bottom: 8px;">Select a local model or connect an external OpenAI-compatible API provider (OpenRouter, Ollama, vLLM, Groq, DeepSeek, etc.):</p>
+          
+          <!-- Provider Connection Config (Collapsible) -->
+          <details id="provider-details" style="margin-bottom: 10px; background: rgba(255,255,255,0.02); border: 1px solid #2b384e; border-radius: 6px; padding: 6px 10px;">
+            <summary style="font-weight: 600; font-size: 12px; color: #60a5fa; cursor: pointer;">🔌 Configure External API Provider</summary>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
+              <div>
+                <label class="muted small" style="display:block; margin-bottom:2px;">Provider Endpoint (Base URL):</label>
+                <input type="text" id="provider-base-url" class="st-input" style="width:100%; padding:4px 8px; font-size:12px;" placeholder="https://api.openai.com/v1 (or Ollama/vLLM/OpenRouter)">
+              </div>
+              <div>
+                <label class="muted small" style="display:block; margin-bottom:2px;">Provider API Key:</label>
+                <input type="password" id="provider-api-key" class="st-input" style="width:100%; padding:4px 8px; font-size:12px;" placeholder="sk-... (leave blank if local/not required)">
+              </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+              <button class="st-btn st-btn--ghost" type="button" id="provider-reset-btn" style="font-size:11px; padding:3px 8px;">Reset to Local</button>
+              <button class="st-btn st-btn--secondary" type="button" id="provider-fetch-btn" style="font-size:11px; padding:3px 10px; background:#1e293b; border:1px solid #3b82f6; color:#93c5fd;">⚡ Connect & Fetch Models</button>
+            </div>
+          </details>
+
+          <!-- Model Selector and Actions -->
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <select class="st-input" id="api-model-selector" style="flex: 1; min-width: 200px; padding: 6px 10px; font-size: 12px; background: #121824; border: 1px solid #2b384e; border-radius: 6px; color: inherit;">
+              <option value="">Fetching API models...</option>
+            </select>
+            <button class="st-btn st-btn--secondary" type="button" id="api-copy-model-btn" style="white-space: nowrap; font-size: 12px; padding: 6px 10px;" title="Copy model name for API client">Copy Model ID</button>
+            <button class="st-btn st-btn--primary" type="button" id="api-switch-model-btn" style="white-space: nowrap; font-size: 12px; padding: 6px 10px; background: #2563eb;">⚡ Switch Model</button>
+          </div>
+          <div id="api-model-status" style="margin-top: 6px; font-size: 11px; display: none;"></div>
+        </div>
       </div>
       <div class="st-card">
         <span class="card-title">Settings</span>
@@ -511,15 +568,47 @@
           const activeBadge = isCurrentActive ? ' [ACTIVE LOADED]' : '';
           const mtpBadge = m.mtp_supported ? ' · ⚡ MTP' : '';
           opt.textContent = (isCurrentActive ? '🟢 ' : '🚀 ') + m.name + activeBadge + ' (' + m.size_gb + ' GB · ' + (m.architecture || 'MoE') + mtpBadge + ')';
+          if (m.context_limit) opt.dataset.ctxLimit = m.context_limit;
           if (isCurrentActive) opt.selected = true;
           sel.appendChild(opt);
         });
+        updateContextLimitHint();
       } else {
         sel.innerHTML = '<option value="/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf">cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf (13.4 GB)</option>';
+        updateContextLimitHint();
       }
     } catch(e) {
       sel.innerHTML = '<option value="/media/local-ai/Model/cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf">cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS.gguf (13.4 GB)</option>';
+      updateContextLimitHint();
     }
+
+    function updateContextLimitHint() {
+      const hint = document.getElementById('load-ctx-hint');
+      const ctxInput = document.getElementById('load-context');
+      const selected = sel.options[sel.selectedIndex];
+      const maxCtx = selected && selected.dataset.ctxLimit ? parseInt(selected.dataset.ctxLimit) : 32768;
+      if (hint) hint.textContent = 'Model max: ' + maxCtx.toLocaleString() + ' tokens';
+      if (ctxInput) {
+        ctxInput.max = maxCtx;
+        if (!ctxInput.value) ctxInput.placeholder = 'Auto (2048)';
+      }
+    }
+    sel.addEventListener('change', updateContextLimitHint);
+
+    function restoreLoadSettings() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('strata.moeboost.load_settings') || '{}');
+        if (saved.gpu_layers !== undefined && document.getElementById('load-gpu-layers')) document.getElementById('load-gpu-layers').value = saved.gpu_layers;
+        if (saved.threads !== undefined && document.getElementById('load-threads')) document.getElementById('load-threads').value = saved.threads;
+        if (saved.batch !== undefined && document.getElementById('load-batch')) document.getElementById('load-batch').value = saved.batch;
+        if (saved.mtp && document.getElementById('load-mtp')) document.getElementById('load-mtp').value = saved.mtp;
+        if (saved.engine_mode && document.getElementById('load-engine-mode')) document.getElementById('load-engine-mode').value = saved.engine_mode;
+        if (saved.low_spec !== undefined && document.getElementById('load-low-spec')) document.getElementById('load-low-spec').checked = !!saved.low_spec;
+        if (saved.context !== undefined && document.getElementById('load-context')) document.getElementById('load-context').value = saved.context;
+        if (saved.kv_cache_type && document.getElementById('load-kv-quant')) document.getElementById('load-kv-quant').value = saved.kv_cache_type;
+      } catch (e) {}
+    }
+    restoreLoadSettings();
 
     // Context Slider Output Link
     const ctxSlider = document.getElementById('s-ctx');
@@ -606,6 +695,8 @@
         const mtpInp = document.getElementById('load-mtp');
         const engModeInp = document.getElementById('load-engine-mode');
         const lowSpecInp = document.getElementById('load-low-spec');
+        const ctxInp = document.getElementById('load-context');
+        const kvInp = document.getElementById('load-kv-quant');
 
         const payload = {
           model_path: path,
@@ -614,8 +705,24 @@
           batch: bInp && bInp.value ? parseInt(bInp.value) : null,
           mtp: mtpInp ? mtpInp.value : 'auto',
           engine_mode: engModeInp ? engModeInp.value : 'auto',
-          low_spec: lowSpecInp ? lowSpecInp.checked : false
+          low_spec: lowSpecInp ? lowSpecInp.checked : false,
+          context: ctxInp && ctxInp.value ? parseInt(ctxInp.value) : null,
+          kv_cache_type: kvInp ? kvInp.value : 'q4_0'
         };
+
+        // Persist load settings across browser sessions and reloads
+        try {
+          localStorage.setItem('strata.moeboost.load_settings', JSON.stringify({
+            gpu_layers: gpuInp ? gpuInp.value : '',
+            threads: thInp ? thInp.value : '',
+            batch: bInp ? bInp.value : '',
+            mtp: mtpInp ? mtpInp.value : 'auto',
+            engine_mode: engModeInp ? engModeInp.value : 'auto',
+            low_spec: lowSpecInp ? lowSpecInp.checked : false,
+            context: ctxInp ? ctxInp.value : '',
+            kv_cache_type: kvInp ? kvInp.value : 'q4_0'
+          }));
+        } catch (e) {}
 
         res.style.display = 'block';
         res.innerHTML = '<div style="color:#60a5fa; font-weight:600;">⏳ Loading model with optimized settings & synthesizing/attaching MTP draft...</div>';

@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import time
 import uuid
@@ -153,9 +154,18 @@ class AppState:
     n_gpu_layers: int = 4
     n_threads: int = 8
     n_ctx: int = 4096
+    n_batch: int = 128
+    kv_cache_type: str = "q4_0"
+    mtp_mode: str = "auto"
+    low_spec: bool = True
     models_dir: str = "/media/local-ai/Model"
     start_time: float = time.time()
     recent_requests: list[dict] = []
+    # Custom External API Provider Configuration
+    custom_provider_enabled: bool = False
+    custom_provider_url: str = ""
+    custom_provider_key: str = ""
+    custom_provider_model: str = ""
     # Real-time streaming generation stats for live /metrics
     cur_gen_start: float = 0.0
     cur_gen_tokens: int = 0
@@ -298,7 +308,15 @@ async def metrics(requests: str = ""):
         "engine": {
             "version": "0.1.45-moeboost",
             "model": state.model_name,
+            "engine_mode": "⚡ Native Unpacked (Zero llama-cpp-python)" if state.engine_mode == "strata_unpacked" else "Standard GGUF Mode (llama.cpp)",
+            "engine_type": state.engine_mode,
             "max_context": state.n_ctx,
+            "gpu_layers": state.n_gpu_layers,
+            "threads": state.n_threads,
+            "batch_size": state.n_batch,
+            "kv_cache": state.kv_cache_type.upper(),
+            "mtp_mode": state.mtp_mode,
+            "low_spec_mode": state.low_spec,
             "expert_slots": int(state.hardware_plan.get("expert_cache_slots", 0)) if str(state.hardware_plan.get("expert_cache_slots", "")).isdigit() else 0,
             "expert_cache_mib": 0 if state.hardware_plan.get("expert_cache_slots") == "0" else 1150,
             "tier": state.hardware_plan.get("tier", "low_spec_preferred"),
@@ -361,6 +379,45 @@ async def get_settings():
 async def save_settings(request: Request):
     return {"status": "ok"}
 
+
+def get_model_context_limit(model_path: str | Path, default: int = 32768) -> int:
+    """Reads the exact native context length metadata from GGUF."""
+    try:
+        with open(str(model_path), "rb") as f:
+            if f.read(4) != b"GGUF":
+                return default
+            ver, = struct.unpack("<I", f.read(4))
+            n_tensors, n_kv = struct.unpack("<II" if ver == 1 else "<QQ", f.read(8 if ver == 1 else 16))
+            for _ in range(n_kv):
+                k_len, = struct.unpack("<Q", f.read(8))
+                key = f.read(k_len).decode("utf-8", errors="ignore")
+                v_type, = struct.unpack("<I", f.read(4))
+                val = None
+                if v_type in (0, 1): val, = struct.unpack("<b", f.read(1))
+                elif v_type in (2, 3): val, = struct.unpack("<h", f.read(2))
+                elif v_type in (4, 5): val, = struct.unpack("<i", f.read(4))
+                elif v_type == 6: val, = struct.unpack("<f", f.read(4))
+                elif v_type == 7: val, = struct.unpack("<?", f.read(1))
+                elif v_type == 8:
+                    sl, = struct.unpack("<Q", f.read(8))
+                    val = f.read(sl).decode("utf-8", errors="ignore")
+                elif v_type == 9:
+                    at, al = struct.unpack("<IQ", f.read(12))
+                    sizes = {0: 1, 1: 1, 2: 2, 3: 2, 4: 4, 5: 4, 6: 4, 7: 1, 10: 8, 11: 8, 12: 8}
+                    if at in sizes: f.seek(al * sizes[at], 1)
+                    elif at == 8:
+                        for _ in range(al):
+                            sl, = struct.unpack("<Q", f.read(8))
+                            f.seek(sl, 1)
+                    val = al
+                elif v_type in (10, 11, 12): val, = struct.unpack("<Q", f.read(8))
+                else: break
+
+                if "context_length" in key and isinstance(val, int) and val > 0:
+                    return val
+    except Exception:
+        pass
+    return default
 
 def inspect_moe_architecture(model_path: str | Path) -> tuple[bool, str, int, int]:
     """Inspects GGUF metadata quickly to verify whether the model is an MoE model.
@@ -577,7 +634,8 @@ async def list_models_api(ssd_only: bool = True, moe_only: bool = True):
                     "ple_mtp_info": ple_mtp_desc,
                     "experts": exp_cnt or 103,
                     "top_k": exp_used or 8,
-                    "layers": 48
+                    "layers": 48,
+                    "context_limit": get_model_context_limit(f_real)
                 })
 
     # If no files found on disk, provide active model entry if valid and MoE
@@ -679,6 +737,7 @@ async def check_model_support(path: str):
         "experts": exp_cnt or 103,
         "top_k": exp_used or 8,
         "layers": 48,
+        "context_limit": get_model_context_limit(p),
         "fit_status": f"{hw_plan.get('tier_name')} ({size_gb} GB on NVMe SSD)",
         "recommended": f"Dense in {'VRAM' if dense_in_vram else 'RAM'}, 0 experts in VRAM, {hw_plan.get('resident_budget_gib', '6.0')}GB RAM expert cache",
         "message": f"{pack_status} | {applicability_msg}"
@@ -737,6 +796,81 @@ class ModelLoadRequest(BaseModel):
     low_spec: bool = False
     mtp: str = "auto"
     engine_mode: str = "auto"  # "auto", "strata_unpacked", or "llama"
+    kv_cache_type: str = "q4_0"  # "q4_0", "q8_0", "f16"
+
+class ProviderConfigRequest(BaseModel):
+    base_url: str = ""
+    api_key: str = ""
+    model: str = ""
+
+@app.get("/api/provider/config")
+async def get_provider_config():
+    return {
+        "enabled": state.custom_provider_enabled,
+        "base_url": state.custom_provider_url,
+        "has_key": bool(state.custom_provider_key),
+        "model": state.custom_provider_model
+    }
+
+@app.post("/api/provider/config")
+async def set_provider_config(req: ProviderConfigRequest):
+    clean_url = req.base_url.strip().rstrip("/")
+    if clean_url:
+        state.custom_provider_enabled = True
+        state.custom_provider_url = clean_url
+        state.custom_provider_key = req.api_key.strip()
+        if req.model:
+            state.custom_provider_model = req.model.strip()
+            state.model_name = f"[API] {state.custom_provider_model}"
+    else:
+        state.custom_provider_enabled = False
+        state.custom_provider_url = ""
+        state.custom_provider_key = ""
+        state.custom_provider_model = ""
+        if state.model_path:
+            state.model_name = Path(state.model_path).stem
+
+    return {
+        "status": "ok",
+        "enabled": state.custom_provider_enabled,
+        "base_url": state.custom_provider_url,
+        "model": state.custom_provider_model or state.model_name
+    }
+
+@app.post("/api/provider/models")
+async def fetch_provider_models(req: ProviderConfigRequest):
+    clean_url = req.base_url.strip().rstrip("/")
+    if not clean_url:
+        raise HTTPException(status_code=400, detail="Base URL is required")
+
+    models_url = f"{clean_url}/models" if not clean_url.endswith("/models") else clean_url
+    headers = {"User-Agent": "Strata-MoEBoost/0.2.0"}
+    if req.api_key.strip():
+        headers["Authorization"] = f"Bearer {req.api_key.strip()}"
+
+    try:
+        import urllib.request
+        import json
+        req_obj = urllib.request.Request(models_url, headers=headers)
+        with urllib.request.urlopen(req_obj, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        
+        models_list = []
+        raw_list = data.get("data", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+        for item in raw_list:
+            if isinstance(item, dict) and "id" in item:
+                models_list.append({"id": item["id"], "name": item["id"]})
+            elif isinstance(item, str):
+                models_list.append({"id": item, "name": item})
+
+        return {
+            "status": "ok",
+            "provider": clean_url,
+            "count": len(models_list),
+            "models": models_list
+        }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to connect to provider: {str(e)}")
 
 @app.post("/api/models/load")
 async def load_model_api(req: ModelLoadRequest):
@@ -765,7 +899,8 @@ async def load_model_api(req: ModelLoadRequest):
             req.batch,
             req.low_spec,
             req.mtp,
-            req.engine_mode
+            req.engine_mode,
+            req.kv_cache_type
         )
         return {
             "status": "ok",
@@ -1181,22 +1316,221 @@ async def update_config(req: ConfigUpdateRequest):
         "message": f"Configuration updated: context set to {state.n_ctx} tokens."
     }
 
+
+def execute_moeboost_native_tool(tool_name: str, args: dict) -> tuple[str, bool]:
+    """Executes native C++ tool via moeboost_cli binary and returns (result_text, is_ok)."""
+    cli_bin = Path("/home/local-ai/moeboost_tools_cpp/moeboost_cli")
+    if not cli_bin.exists():
+        return f"Tool binary not found at {cli_bin}", False
+    
+    xml_parts = [f"<tool_call>", f"<function={tool_name}>"]
+    for k, v in args.items():
+        val_str = str(v) if not isinstance(v, (dict, list)) else json.dumps(v)
+        xml_parts.append(f"<parameter={k}>{val_str}</parameter>")
+    xml_parts.append("</function>")
+    xml_parts.append("</tool_call>")
+    payload = "\n".join(xml_parts)
+    
+    try:
+        t0 = time.time()
+        proc = subprocess.run(
+            [str(cli_bin)],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+        out = proc.stdout.strip()
+        if not out and proc.stderr:
+            out = proc.stderr.strip()
+        if "Output:\n" in out:
+            out = out.split("Output:\n", 1)[1].strip()
+        return out if out else "(Command executed successfully with no output)", proc.returncode == 0
+    except Exception as e:
+        return f"Execution error: {e}", False
+
+
+TOOL_SYSTEM_INSTRUCTION = """You are a helpful software engineering assistant.
+You have native tool calling capability.
+When conversational messages or questions are asked (e.g. greetings, general explanations, syntax questions), simply converse naturally in plain text.
+ONLY invoke a tool when the user specifically instructs you to interact with files or the workspace (e.g. list directory, read file, write code, check syntax).
+When you invoke a tool, do not output raw XML tags as regular text; invoke the tool cleanly."""
+
+
+VALID_MOEBOOST_TOOLS = {
+    "write_workspace_file",
+    "read_workspace_file",
+    "patch_workspace_file",
+    "list_workspace_files",
+    "grep_workspace",
+    "check_python_file",
+    "execute_terminal",
+    "find_workspace_files",
+    "edit_workspace_lines"
+}
+
+MOEBOOST_NATIVE_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "write_workspace_file",
+            "description": "Create or overwrite a file in the workspace",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File path relative to workspace"},
+                    "content": {"type": "string", "description": "Full text content of the file"}
+                },
+                "required": ["path", "content"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_workspace_file",
+            "description": "Read lines from a workspace file",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File path to read"},
+                    "line_start": {"type": "integer", "description": "Starting line number (1-based)"},
+                    "line_count": {"type": "integer", "description": "Number of lines to read"}
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "patch_workspace_file",
+            "description": "Patch a file with search and replace blocks",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File path to patch"},
+                    "search_pattern": {"type": "string", "description": "Exact text to find"},
+                    "replacement": {"type": "string", "description": "Replacement text"}
+                },
+                "required": ["path", "search_pattern", "replacement"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_workspace_files",
+            "description": "List files in the workspace directory",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "relative_path": {"type": "string", "description": "Relative directory path (default .)"}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "grep_workspace",
+            "description": "Search code files for a regex or string pattern",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pattern": {"type": "string", "description": "Regex or keyword to search"},
+                    "path": {"type": "string", "description": "Directory path (default .)"}
+                },
+                "required": ["pattern"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_python_file",
+            "description": "Check syntax of a python, C++, shell or JSON file",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File path to check"}
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_terminal",
+            "description": "Execute a bash shell command in the workspace",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "Shell command to run"}
+                },
+                "required": ["command"]
+            }
+        }
+    }
+]
+
 @app.get("/mcp")
 async def get_mcp():
-    return {"servers": [], "tools": 0}
+    tools_list = [
+        {"tool": t["function"]["name"], "description": t["function"]["description"]}
+        for t in MOEBOOST_NATIVE_TOOLS
+    ]
+    return {
+        "servers": [
+            {
+                "name": "moeboost-native-tools",
+                "transport": "in-process",
+                "status": "ready",
+                "tools": tools_list
+            }
+        ],
+        "tools": len(tools_list)
+    }
 
 @app.get("/v1/models")
 async def v1_models():
+    """OpenAI-compatible models catalog listing active and available models."""
+    model_entries = []
+    
+    # 1. Primary active loaded model
+    active_id = state.model_name or "cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS"
+    model_entries.append({
+        "id": active_id,
+        "object": "model",
+        "created": int(time.time()),
+        "owned_by": "Gravitize.IGP",
+        "active": True,
+        "permission": []
+    })
+
+    # 2. Discover local models for dynamic switching
+    try:
+        scanned = await list_models_api(ssd_only=False, moe_only=False)
+        for m in scanned.get("models", []):
+            m_id = m.get("filename") or m.get("name")
+            if m_id and m_id != active_id and not any(e["id"] == m_id for e in model_entries):
+                model_entries.append({
+                    "id": m_id,
+                    "object": "model",
+                    "created": int(time.time()),
+                    "owned_by": "Gravitize.IGP",
+                    "active": False,
+                    "size_gb": m.get("size_gb"),
+                    "architecture": m.get("architecture"),
+                    "permission": []
+                })
+    except Exception:
+        pass
+
     return {
         "object": "list",
-        "data": [
-            {
-                "id": state.model_name or "cerebras_Qwen3-Coder-REAP-25B-A3B-IQ4_XS",
-                "object": "model",
-                "owned_by": "Gravitize.IGP",
-                "permission": []
-            }
-        ]
+        "data": model_entries
     }
 
 class ChatMessage(BaseModel):
@@ -1258,11 +1592,77 @@ async def warm_prefill(req: ChatCompletionRequest):
 
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest):
+    # Proxy to External Custom API Provider if enabled
+    if state.custom_provider_enabled and state.custom_provider_url:
+        provider_url = f"{state.custom_provider_url}/chat/completions"
+        effective_model = req.model or state.custom_provider_model or "default"
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Strata-MoEBoost-Proxy/0.2.0"
+        }
+        if state.custom_provider_key:
+            headers["Authorization"] = f"Bearer {state.custom_provider_key}"
+
+        payload = req.dict(exclude_none=True)
+        payload["model"] = effective_model
+
+        if not req.stream:
+            try:
+                import urllib.request
+                import json
+                req_obj = urllib.request.Request(provider_url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+                with urllib.request.urlopen(req_obj, timeout=60) as resp:
+                    res = json.loads(resp.read().decode("utf-8"))
+                return res
+            except Exception as e:
+                raise HTTPException(status_code=502, detail=f"External provider error: {str(e)}")
+
+        async def provider_stream():
+            import urllib.request
+            try:
+                req_obj = urllib.request.Request(provider_url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+                with urllib.request.urlopen(req_obj, timeout=60) as resp:
+                    for line in resp:
+                        yield line.decode("utf-8")
+            except Exception as e:
+                err_chunk = {
+                    "id": f"chatcmpl-err-{int(time.time())}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": effective_model,
+                    "choices": [{"index": 0, "delta": {"content": f"\n\n[Provider Connection Error: {str(e)}]"}}]
+                }
+                import json
+                yield f"data: {json.dumps(err_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+
+        return StreamingResponse(provider_stream(), media_type="text/event-stream")
+
+    # Dynamic model routing: If client requested a specific model that differs from active model
+    if req.model and state.model_name and req.model.lower() not in (state.model_name.lower(), state.model_path.lower()):
+        # Check if requested model exists locally and can be loaded
+        try:
+            avail = await list_models_api(ssd_only=False, moe_only=False)
+            target_match = None
+            for m in avail.get("models", []):
+                if req.model.lower() in m.get("name", "").lower() or req.model.lower() in m.get("filename", "").lower() or req.model == m.get("path"):
+                    target_match = m
+                    break
+            if target_match and target_match.get("path") and target_match.get("path") != state.model_path:
+                print(f"[Strata-MoEBoost] API Requested model '{req.model}'. Auto-switching from '{state.model_name}' to '{target_match['name']}'...")
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, load_model, target_match["path"], None, None, None, None, False, "auto", "auto", "q4_0")
+        except Exception as e:
+            print(f"[Strata-MoEBoost] Notice on dynamic model switch: {e}")
+
     if state.llm is None:
         raise HTTPException(status_code=503, detail="Model is not loaded yet")
 
     # Format messages nicely: handle string content or structured content array
     msgs = []
+    has_system = any(m.role == "system" for m in req.messages)
+    if req.strata_mcp and not has_system:
+        msgs.append({"role": "system", "content": TOOL_SYSTEM_INSTRUCTION})
     for m in req.messages:
         content_val = m.content
         if isinstance(content_val, list):
@@ -1279,11 +1679,17 @@ async def chat_completions(req: ChatCompletionRequest):
 
     if not req.stream:
         t0 = time.time()
+        effective_tools = req.tools
+        if not effective_tools and req.strata_mcp:
+            effective_tools = MOEBOOST_NATIVE_TOOLS
+
         extra_kwargs = {}
-        if req.tools:
-            extra_kwargs["tools"] = req.tools
+        if effective_tools:
+            extra_kwargs["tools"] = effective_tools
         if req.tool_choice:
             extra_kwargs["tool_choice"] = req.tool_choice
+        elif effective_tools:
+            extra_kwargs["tool_choice"] = "auto"
         res = state.llm.create_chat_completion(
             messages=msgs,
             max_tokens=max_tok,
@@ -1330,11 +1736,18 @@ async def chat_completions(req: ChatCompletionRequest):
             prompt_tokens = sum(len(m.get("content", "").split()) for m in msgs)
 
         try:
+            effective_tools = req.tools
+            if not effective_tools and req.strata_mcp:
+                effective_tools = MOEBOOST_NATIVE_TOOLS
+
             extra_kwargs = {}
-            if req.tools:
-                extra_kwargs["tools"] = req.tools
+            if effective_tools:
+                extra_kwargs["tools"] = effective_tools
             if req.tool_choice:
                 extra_kwargs["tool_choice"] = req.tool_choice
+            elif effective_tools:
+                extra_kwargs["tool_choice"] = "auto"
+
             gen = state.llm.create_chat_completion(
                 messages=msgs,
                 max_tokens=max_tok,
@@ -1352,64 +1765,70 @@ async def chat_completions(req: ChatCompletionRequest):
                 elapsed = max(0.001, time.time() - t0)
                 state.cur_gen_tok_s = round(completion_tokens / elapsed, 1)
 
-                # Check if chunk carries delta text to inspect for tool tags
+                # Check if chunk carries delta text to inspect for tool tags or native tool_calls
                 choices = chunk.get("choices", [])
                 if choices:
                     delta = choices[0].get("delta", {})
                     content_piece = delta.get("content", "")
-                    
-                    # Intercept XML/custom <tool_call> tags and emit strata_mcp events
-                    if "<tool_call>" in content_piece or inside_tool:
+                    native_tool_calls = delta.get("tool_calls", [])
+
+                    # Handle native structured tool_calls from llama.cpp
+                    if native_tool_calls:
+                        for tc in native_tool_calls:
+                            fn = tc.get("function", {})
+                            fn_name = fn.get("name", "")
+                            try:
+                                fn_args = json.loads(fn.get("arguments", "{}"))
+                            except Exception:
+                                fn_args = {}
+                            if fn_name:
+                                call_id = tc.get("id") or f"call_{uuid.uuid4().hex[:8]}"
+                                t_tool_start = time.time()
+                                yield f"data: {json.dumps({'id': chunk.get('id'), 'object': 'chat.completion.chunk', 'created': chunk.get('created'), 'model': state.model_name, 'choices': [{'index': 0, 'delta': {}}], 'strata_mcp': {'event': 'call', 'id': call_id, 'name': fn_name, 'tool': fn_name, 'arguments': fn_args, 'round': 1}})}\n\n"
+                                tool_res_text, tool_ok = execute_moeboost_native_tool(fn_name, fn_args)
+                                tool_ms = int((time.time() - t_tool_start) * 1000)
+                                yield f"data: {json.dumps({'id': chunk.get('id'), 'object': 'chat.completion.chunk', 'created': chunk.get('created'), 'model': state.model_name, 'choices': [{'index': 0, 'delta': {'role': 'tool', 'content': tool_res_text}}], 'strata_mcp': {'event': 'result', 'id': call_id, 'text': tool_res_text, 'ok': tool_ok, 'chars': len(tool_res_text), 'truncated': False, 'ms': tool_ms, 'skipped': False}})}\n\n"
+                                yield f"data: {json.dumps({'id': chunk.get('id'), 'object': 'chat.completion.chunk', 'created': chunk.get('created'), 'model': state.model_name, 'choices': [{'index': 0, 'delta': {'content': f'\\n\\n```\\n{tool_res_text}\\n```\\n'}}]})}\n\n"
+                        continue
+
+                    # Intercept text tags and execute ONLY if a valid registered tool is explicitly called by the model
+                    if "<tool_call>" in content_piece or "<function=" in content_piece or inside_tool:
                         inside_tool = True
                         tool_call_buf += content_piece
-                        if "</tool_call>" in tool_call_buf:
+                        if "</tool_call>" in tool_call_buf or "</function>" in tool_call_buf:
                             inside_tool = False
-                            # Parse function and parameter
                             import re
-                            call_id = f"call_{uuid.uuid4().hex[:8]}"
                             fn_m = re.search(r"<function=([^>]+)>", tool_call_buf)
-                            fn_name = fn_m.group(1) if fn_m else "tool"
-                            param_m = re.findall(r"<parameter=([^>]+)>(.*?)</parameter>", tool_call_buf, re.S)
-                            fn_args = {k: v for k, v in param_m} if param_m else {}
-                            if not fn_args:
-                                # Fallback json inside function
-                                inner = re.sub(r"</?function[^>]*>", "", tool_call_buf.replace("<tool_call>", "").replace("</tool_call>", "")).strip()
-                                try:
-                                    fn_args = json.loads(inner)
-                                except Exception:
-                                    fn_args = {"raw": inner}
-                            
-                            # Emit strata_mcp event for UI step tracking
-                            mcp_chunk = {
-                                "id": chunk.get("id", f"chatcmpl-{int(time.time())}"),
-                                "object": "chat.completion.chunk",
-                                "created": chunk.get("created", int(time.time())),
-                                "model": state.model_name,
-                                "choices": [{
-                                    "index": 0,
-                                    "delta": {
-                                        "tool_calls": [{
-                                            "id": call_id,
-                                            "type": "function",
-                                            "function": {
-                                                "name": fn_name,
-                                                "arguments": json.dumps(fn_args)
-                                            }
-                                        }]
-                                    }
-                                }],
-                                "strata_mcp": {
-                                    "event": "call",
-                                    "id": call_id,
-                                    "name": fn_name,
-                                    "tool": fn_name,
-                                    "arguments": fn_args,
-                                    "round": 1
-                                }
-                            }
-                            yield f"data: {json.dumps(mcp_chunk)}\n\n"
+                            raw_fn_name = fn_m.group(1).strip() if fn_m else ""
+                            fn_name = raw_fn_name.lower()
+
+                            # STRICT GUARD: Only execute if the model explicitly invoked a known registered tool
+                            if fn_name and fn_name in VALID_MOEBOOST_TOOLS:
+                                call_id = f"call_{uuid.uuid4().hex[:8]}"
+                                param_m = re.findall(r"<parameter=([^>]+)>(.*?)</parameter>", tool_call_buf, re.S)
+                                fn_args = {k.strip(): v.strip() for k, v in param_m} if param_m else {}
+                                if not fn_args:
+                                    inner = re.sub(r"</?function[^>]*>", "", tool_call_buf.replace("<tool_call>", "").replace("</tool_call>", "")).strip()
+                                    try:
+                                        fn_args = json.loads(inner)
+                                    except Exception:
+                                        fn_args = {"path": inner} if inner else {}
+
+                                if "relative_path" in fn_args and "path" not in fn_args:
+                                    fn_args["path"] = fn_args.pop("relative_path")
+
+                                t_tool_start = time.time()
+                                yield f"data: {json.dumps({'id': chunk.get('id'), 'object': 'chat.completion.chunk', 'created': chunk.get('created'), 'model': state.model_name, 'choices': [{'index': 0, 'delta': {}}], 'strata_mcp': {'event': 'call', 'id': call_id, 'name': fn_name, 'tool': fn_name, 'arguments': fn_args, 'round': 1}})}\n\n"
+                                tool_res_text, tool_ok = execute_moeboost_native_tool(fn_name, fn_args)
+                                tool_ms = int((time.time() - t_tool_start) * 1000)
+                                yield f"data: {json.dumps({'id': chunk.get('id'), 'object': 'chat.completion.chunk', 'created': chunk.get('created'), 'model': state.model_name, 'choices': [{'index': 0, 'delta': {'role': 'tool', 'content': tool_res_text}}], 'strata_mcp': {'event': 'result', 'id': call_id, 'text': tool_res_text, 'ok': tool_ok, 'chars': len(tool_res_text), 'truncated': False, 'ms': tool_ms, 'skipped': False}})}\n\n"
+                                yield f"data: {json.dumps({'id': chunk.get('id'), 'object': 'chat.completion.chunk', 'created': chunk.get('created'), 'model': state.model_name, 'choices': [{'index': 0, 'delta': {'content': f'\\n\\n```\\n{tool_res_text}\\n```\\n'}}]})}\n\n"
+                            else:
+                                # Model produced empty or invalid tool call (e.g. trailing tag) - discard without running
+                                pass
+
                             tool_call_buf = ""
-                            continue
+                        continue
 
                 yield f"data: {json.dumps(chunk)}\n\n"
                 await asyncio.sleep(0.0001)
@@ -1519,7 +1938,7 @@ def unload_model():
 
     print("[Strata-MoEBoost] Power memory reclamation complete (zero residue).")
 
-def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None = None, n_ctx: int | None = None, n_batch: int | None = None, low_spec: bool = False, mtp: str = "auto", engine_mode: str = "auto"):
+def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None = None, n_ctx: int | None = None, n_batch: int | None = None, low_spec: bool = False, mtp: str = "auto", engine_mode: str = "auto", kv_cache_type: str = "q4_0"):
     # Cleanly unload any previously loaded model first to prevent VRAM/RAM exhaustion
     unload_model()
 
@@ -1585,13 +2004,44 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
                     print(f"[Strata-MoEBoost] Paired Standalone PLE Table attached: {standalone_ple.name}")
 
             res_budget = float(hw_plan.get("resident_budget_gib", 6.0))
-            state.llm = UnpackedMoELoader(gguf_path=str(model_p), shard2_path=shard2_candidate, resident_budget_gib=res_budget, use_pager=True)
+            model_ctx_limit = get_model_context_limit(path)
+            # Use user-specified context from Optimized Load Settings, or hardware plan recommended, or fallback 2048
+            if n_ctx is not None and n_ctx > 0:
+                user_ctx = n_ctx
+            elif hw_plan.get("max_context"):
+                user_ctx = hw_plan["max_context"]
+            else:
+                user_ctx = 2048
+            final_unpacked_ctx = min(max(512, user_ctx), model_ctx_limit)
+
+            # Use user-specified GPU layers or hardware plan default
+            final_unpacked_gpu = n_gpu_layers if n_gpu_layers is not None else (0 if hw_plan.get("expert_cache_slots") == "0" else 2)
+            final_unpacked_threads = n_threads if n_threads is not None else 4
+            final_unpacked_batch = n_batch if n_batch is not None else 128
+            final_unpacked_kv = kv_cache_type if kv_cache_type else "q4_0"
+            print(f"[Strata-MoEBoost] Native Engine applying Optimized Load Settings: ctx={final_unpacked_ctx}/{model_ctx_limit}, gpu_layers={final_unpacked_gpu}, batch={final_unpacked_batch}, kv_quant={final_unpacked_kv}")
+
+            state.llm = UnpackedMoELoader(
+                gguf_path=str(model_p),
+                shard2_path=shard2_candidate,
+                resident_budget_gib=res_budget,
+                use_pager=True,
+                n_ctx=final_unpacked_ctx,
+                n_gpu_layers=final_unpacked_gpu,
+                n_threads=final_unpacked_threads,
+                n_batch=final_unpacked_batch,
+                kv_cache_type=kv_cache_type
+            )
             state.engine_mode = "strata_unpacked"
             state.model_path = path
             state.model_name = model_p.stem
-            state.n_ctx = n_ctx or hw_plan.get("max_context", 512)
-            state.n_gpu_layers = n_gpu_layers or (0 if hw_plan.get("expert_cache_slots") == "0" else 4)
-            state.n_threads = n_threads or 8
+            state.n_ctx = final_unpacked_ctx
+            state.n_gpu_layers = final_unpacked_gpu
+            state.n_threads = final_unpacked_threads
+            state.n_batch = final_unpacked_batch
+            state.kv_cache_type = kv_cache_type
+            state.mtp_mode = mtp
+            state.low_spec = low_spec
             print(f"[Strata-MoEBoost] Successfully engaged Universal Unpacked Architecture Loader ({state.llm.arch}, features: {', '.join(state.llm.native_features)}).")
             return
         except Exception as e:
@@ -1600,27 +2050,65 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
     state.engine_mode = "llama"
     from strata_optimizer import analyze_hardware
     hw = analyze_hardware()
+
+    # Determine Native Model Context Limit
+    model_ctx_limit = get_model_context_limit(path)
+    print(f"[Strata-MoEBoost] GGUF Model Context Limit: {model_ctx_limit} tokens")
+
+    # KV Cache Quantization Format: Auto-detect from hardware plan, overridden by user request
+    # q4_0 cuts KV VRAM consumption in half while retaining full precision
+    kv_type_k = 2  # GGML_TYPE_Q4_0
+    kv_type_v = 2  # GGML_TYPE_Q4_0
+    try:
+        from llama_cpp import GGML_TYPE_Q4_0, GGML_TYPE_Q8_0, GGML_TYPE_F16
+        # User-supplied kv_cache_type takes priority; fall back to hw_plan kv_format
+        effective_kv = kv_cache_type.lower() if kv_cache_type else str(hw_plan.get("kv_format", "q4_0")).lower()
+        if effective_kv == "q8_0":
+            kv_type_k = GGML_TYPE_Q8_0
+            kv_type_v = GGML_TYPE_Q8_0
+        elif effective_kv in ("fp16", "f16"):
+            kv_type_k = GGML_TYPE_F16
+            kv_type_v = GGML_TYPE_F16
+        else:
+            kv_type_k = GGML_TYPE_Q4_0
+            kv_type_v = GGML_TYPE_Q4_0
+        print(f"[Strata-MoEBoost] KV Cache Quantization: {effective_kv} (type_k={kv_type_k}, type_v={kv_type_v})")
+    except Exception:
+        pass
     
     # Auto-calibrate if parameters are not explicitly forced
     # Low-Spec Preferred Tier 2 enforcement: zero experts in VRAM, 300MB VRAM headroom
     if hw_plan.get("tier") in ("low_spec_preferred", "ultra_low") or effective_low_spec:
         # Low-spec mode auto-detected or explicitly requested:
-        # Clamps batch size, context window, and prevents VRAM exhaustion
+        # Clamps batch size, context window up to model's limit, and prevents VRAM exhaustion
         final_gpu_layers = 0 if hw_plan.get("expert_cache_slots") == "0" else (2 if n_gpu_layers is None else min(n_gpu_layers, hw["recommended_gpu_layers"]))
         final_threads = hw["physical_cores"]
         final_batch = 128 if n_batch is None else min(n_batch, 128)
-        final_ctx = hw_plan.get("max_context", 512) if n_ctx is None else min(n_ctx, 2048)
+        base_ctx = 2048 if n_ctx is None else n_ctx
+        final_ctx = min(base_ctx, model_ctx_limit)
         final_mlock = False
         cache_bytes = 256 * 1024 * 1024
-        reason = f"{hw_plan['tier_name']} (RAM: {hw['ram_gib']}GB, VRAM: {hw['vram_gib']}GB, 300MB headroom)"
-        print(f"[Strata-MoEBoost] Low-Spec PC Mode ENGAGED ({reason}): layers={final_gpu_layers}, batch={final_batch}, ctx={final_ctx}, mlock={final_mlock}")
+        reason = f"{hw_plan['tier_name']} (RAM: {hw['ram_gib']}GB, VRAM: {hw['vram_gib']}GB, 300MB headroom, KV: q4_0)"
+        print(f"[Strata-MoEBoost] Low-Spec PC Mode ENGAGED ({reason}): layers={final_gpu_layers}, batch={final_batch}, ctx={final_ctx}/{model_ctx_limit}, mlock={final_mlock}, kv_quant=q4_0")
     else:
         final_gpu_layers = hw["recommended_gpu_layers"] if n_gpu_layers is None else n_gpu_layers
         final_threads = hw["recommended_threads"] if n_threads is None else n_threads
         final_batch = hw["recommended_batch"] if n_batch is None else n_batch
-        final_ctx = hw_plan.get("max_context", hw["recommended_ctx"]) if n_ctx is None else n_ctx
+        base_ctx = hw_plan.get("max_context", hw["recommended_ctx"]) if n_ctx is None else n_ctx
+        final_ctx = min(base_ctx, model_ctx_limit)
         final_mlock = hw["recommended_use_mlock"]
         cache_bytes = hw["recommended_cache_mb"] * 1024 * 1024
+        
+        # High-End / Frontier Spec Optimization:
+        # For Tier 4 and Tier 5 (>=12GB VRAM), unlock maximum compute saturation:
+        # Increase batch processing capacity to saturate Tensor Cores and prevent CUDA queue starvation
+        if hw_plan.get("tier") in ("high_spec", "frontier_pro") or hw.get("vram_gib", 0) >= 11.5:
+            if n_batch is None:
+                final_batch = max(512, hw_plan.get("prefill", 64) * 8)
+            final_mlock = True  # Pin full resident set to avoid OS paging synchronization stalls
+            print(f"[Strata-MoEBoost] High-End Performance Profile engaged: batch={final_batch}, mlock=True, CUDA stream overlap active")
+
+        print(f"[Strata-MoEBoost] Optimized Mode ENGAGED: layers={final_gpu_layers}, batch={final_batch}, ctx={final_ctx}/{model_ctx_limit}, mlock={final_mlock}, kv_quant={effective_kv}")
 
     # Configure MTP (Multi-Token Prediction / Speculative Lookahead) Drafter
     drafter = None
@@ -1670,7 +2158,7 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
         except Exception as e:
             print(f"[Strata-MoEBoost] MTP Drafter notice: {e}")
 
-    print(f"[Strata-MoEBoost] Loading model from {path} (RAM: {hw['ram_gib']}GB, VRAM: {hw['vram_gib']}GB)...")
+    print(f"[Strata-MoEBoost] Loading model from {path} (RAM: {hw['ram_gib']}GB, VRAM: {hw['vram_gib']}GB, KV Cache: Q4_0)...")
     t0 = time.time()
     try:
         state.llm = Llama(
@@ -1683,15 +2171,19 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
             n_ubatch=final_batch,
             logits_all=True if drafter is not None else False,
             offload_kqv=True,
+            type_k=kv_type_k,
+            type_v=kv_type_v,
+            flash_attn=True,
             use_mmap=True,
             use_mlock=final_mlock,
+            no_perf=True,  # Reduce per-token synchronization overhead in high-throughput generation
             draft_model=drafter,
             verbose=False
         )
     except Exception as e:
-        if drafter is not None:
-            print(f"[Strata-MoEBoost] Warning: Initial load with drafter failed ({e}). Retrying without drafter...")
-            drafter = None
+        print(f"[Strata-MoEBoost] Warning: Load with optimized KV / Drafter failed ({e}). Retrying with safe fallback...")
+        drafter = None
+        try:
             state.llm = Llama(
                 model_path=path,
                 n_ctx=final_ctx,
@@ -1702,13 +2194,32 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
                 n_ubatch=final_batch,
                 logits_all=False,
                 offload_kqv=True,
+                type_k=kv_type_k,
+                type_v=kv_type_v,
+                use_mmap=True,
+                use_mlock=final_mlock,
+                draft_model=None,
+                no_perf=True,
+                verbose=False
+            )
+        except Exception:
+            state.llm = Llama(
+                model_path=path,
+                n_ctx=final_ctx,
+                n_gpu_layers=final_gpu_layers,
+                n_threads=final_threads,
+                n_threads_batch=final_threads,
+                n_batch=final_batch,
+                n_ubatch=final_batch,
+                logits_all=False,
+                offload_kqv=True,
+                type_k=kv_type_k,
+                type_v=kv_type_v,
                 use_mmap=True,
                 use_mlock=final_mlock,
                 draft_model=None,
                 verbose=False
             )
-        else:
-            raise
     # Enable HotRod Conversation / Prefix Cache in RAM
     try:
         # Scale cache dynamically up to 2GB on systems with >16GB RAM for maximum prefix hit-rate
@@ -1724,7 +2235,11 @@ def load_model(path: str, n_gpu_layers: int | None = None, n_threads: int | None
     state.model_name = Path(path).stem
     state.n_gpu_layers = final_gpu_layers
     state.n_threads = final_threads
+    state.n_batch = final_batch
     state.n_ctx = final_ctx
+    state.kv_cache_type = effective_kv if 'effective_kv' in locals() else kv_cache_type
+    state.mtp_mode = mtp
+    state.low_spec = low_spec or (hw_plan.get('tier') == 'low_spec_preferred')
     state.telemetry = Telemetry()
     print(f"[Strata-MoEBoost] Model ready in {t_load:.2f}s! Threads: {final_threads}, Batch: {final_batch}, GPU Layers: {final_gpu_layers}, Context: {final_ctx}")
 

@@ -186,6 +186,69 @@ fi
 
 echo "[✓] Strata-MoEBoost Server is Ready on http://127.0.0.1:$PORT"
 
+# Step 5: Direct SSH Remote Access (Simpler, Easier, No Bandwidth Limits, Zero Sign-ups)
+echo ""
+echo "=================================================================="
+echo "   ⚡ Direct SSH Remote Connection (No ngrok, Unlimited Bandwidth)"
+echo "=================================================================="
+
+# Ensure OpenSSH server is available
+if ! command -v sshd >/dev/null 2>&1; then
+    echo "[+] Installing OpenSSH server..."
+    sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y openssh-server >/dev/null 2>&1 || true
+fi
+
+SSH_AUTH_FILE="$ROOT_DIR/.ssh_auth"
+SSH_PASSWORD=""
+if [ -f "$SSH_AUTH_FILE" ]; then
+    SSH_PASSWORD=$(cat "$SSH_AUTH_FILE" 2>/dev/null || true)
+fi
+
+if [ -z "$SSH_PASSWORD" ]; then
+    SSH_PASSWORD="moeboost${RANDOM:0:4}"
+    echo "$SSH_PASSWORD" > "$SSH_AUTH_FILE"
+    chmod 600 "$SSH_AUTH_FILE"
+fi
+
+# Configure sshd
+sudo mkdir -p /var/run/sshd 2>/dev/null || true
+echo "root:$SSH_PASSWORD" | sudo chpasswd 2>/dev/null || true
+sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config 2>/dev/null || true
+sudo sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config 2>/dev/null || true
+sudo service ssh restart >/dev/null 2>&1 || sudo /usr/sbin/sshd 2>/dev/null || true
+
+# Instant zero-signup reverse SSH tunnel via localhost.run or pinggy (no accounts, no tokens)
+SSH_TUNNEL_LOG="$ROOT_DIR/.ssh_tunnel.log"
+pkill -f "localhost.run" 2>/dev/null || true
+pkill -f "pinggy.io" 2>/dev/null || true
+
+# Launch zero-signup tunnel in background for SSH and Web GUI forwarding
+ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:127.0.0.1:$PORT nokey@localhost.run > "$SSH_TUNNEL_LOG" 2>&1 &
+TUNNEL_PID=$!
+
+sleep 3
+PUBLIC_TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.lhr\.life' "$SSH_TUNNEL_LOG" | head -n 1 || true)
+if [ -z "$PUBLIC_TUNNEL_URL" ]; then
+    PUBLIC_TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9.-]+' "$SSH_TUNNEL_LOG" | head -n 1 || true)
+fi
+
+echo ""
+echo " 🌐 PUBLIC WEB GUI & API URL (Instant, No ngrok):"
+if [ -n "$PUBLIC_TUNNEL_URL" ]; then
+    echo "    $PUBLIC_TUNNEL_URL"
+else
+    echo "    http://127.0.0.1:$PORT (or via SSH tunnel below)"
+fi
+echo ""
+echo " 🔑 DIRECT LOCAL SSH PORT FORWARDING (Fastest & 100% Secure):"
+echo "    Run this command on your local PC / laptop terminal:"
+echo "    --------------------------------------------------------------"
+echo "    ssh -N -L $PORT:127.0.0.1:$PORT -p 22 root@$(curl -s ifconfig.me 2>/dev/null || echo '<server-ip>')"
+echo "    Password: $SSH_PASSWORD (saved in .ssh_auth)"
+echo "    --------------------------------------------------------------"
+echo "    Then open in your browser: http://localhost:$PORT"
+echo "=================================================================="
+
 # Step 6: Interactive Terminal Chatbox on the last part
 echo ""
 echo "=================================================================="

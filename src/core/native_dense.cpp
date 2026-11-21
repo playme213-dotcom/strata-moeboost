@@ -354,6 +354,10 @@ bool NativeDense::load(const std::vector<std::string>& shards, WeightTable& tabl
                 void* allocation = nullptr;
                 bool is_host_mapped = false;
                 static const bool prefer_host_mapped = []() {
+                    const char* env_force = std::getenv("STRATA_FORCE_VRAM_DENSE");
+                    if (env_force && std::atoi(env_force) != 0) {
+                        return false; // User requested to force dense into VRAM
+                    }
                     size_t fb = 0, tb = 0;
                     if (cudaMemGetInfo(&fb, &tb) == cudaSuccess) {
                         return (tb <= (4ull << 30)); // 4GB or smaller GPU (e.g. GTX 1050 3GB)
