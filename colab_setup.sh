@@ -34,10 +34,22 @@ fi
 echo ""
 echo "[Step 1/5] Checking and installing Python dependencies..."
 python3 -m pip install --upgrade pip
-if [ "$CUDA_AVAILABLE" -eq 1 ]; then
-    CMAKE_ARGS="-DGGML_CUDA=on" python3 -m pip install llama-cpp-python --no-cache-dir --force-reinstall || python3 -m pip install llama-cpp-python
+
+# Check if llama-cpp-python is already installed and functional
+if python3 -c "import llama_cpp" >/dev/null 2>&1; then
+    echo "[✓] llama-cpp-python is already installed. Skipping compilation!"
 else
-    python3 -m pip install llama-cpp-python
+    echo "[+] Installing pre-built llama-cpp-python wheel (instant, no source compilation)..."
+    if [ "$CUDA_AVAILABLE" -eq 1 ]; then
+        # Try official pre-compiled CUDA wheel first (installs in 5 seconds without building C++ source)
+        python3 -m pip install llama-cpp-python \
+            --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu122 || \
+        python3 -m pip install llama-cpp-python \
+            --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121 || \
+        python3 -m pip install llama-cpp-python
+    else
+        python3 -m pip install llama-cpp-python
+    fi
 fi
 python3 -m pip install fastapi uvicorn pydantic psutil requests gguf jinja2 py-cpuinfo aria2
 
