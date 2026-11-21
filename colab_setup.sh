@@ -217,36 +217,38 @@ sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh
 sudo sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config 2>/dev/null || true
 sudo service ssh restart >/dev/null 2>&1 || sudo /usr/sbin/sshd 2>/dev/null || true
 
-# Instant zero-signup reverse SSH tunnel via localhost.run or pinggy (no accounts, no tokens)
+# Instant zero-signup reverse SSH tunnel via localhost.run (no accounts, no tokens, no limits)
 SSH_TUNNEL_LOG="$ROOT_DIR/.ssh_tunnel.log"
 pkill -f "localhost.run" 2>/dev/null || true
-pkill -f "pinggy.io" 2>/dev/null || true
 
-# Launch zero-signup tunnel in background for SSH and Web GUI forwarding
-ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:127.0.0.1:$PORT nokey@localhost.run > "$SSH_TUNNEL_LOG" 2>&1 &
+# Forward both HTTP (GUI) and SSH (Port 22) through reverse tunnel
+ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:127.0.0.1:$PORT -R 2222:127.0.0.1:22 nokey@localhost.run > "$SSH_TUNNEL_LOG" 2>&1 &
 TUNNEL_PID=$!
 
-sleep 3
+sleep 4
 PUBLIC_TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.lhr\.life' "$SSH_TUNNEL_LOG" | head -n 1 || true)
-if [ -z "$PUBLIC_TUNNEL_URL" ]; then
-    PUBLIC_TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9.-]+' "$SSH_TUNNEL_LOG" | head -n 1 || true)
-fi
+SSH_TUNNEL_HOST=$(grep -oE '[a-zA-Z0-9.-]+\.lhr\.life' "$SSH_TUNNEL_LOG" | head -n 1 || true)
 
 echo ""
-echo " 🌐 PUBLIC WEB GUI & API URL (Instant, No ngrok):"
+echo " 🌐 1. INSTANT WEB GUI & API URL (Open in browser anywhere):"
 if [ -n "$PUBLIC_TUNNEL_URL" ]; then
     echo "    $PUBLIC_TUNNEL_URL"
 else
-    echo "    http://127.0.0.1:$PORT (or via SSH tunnel below)"
+    echo "    http://127.0.0.1:$PORT (generating tunnel...)"
 fi
 echo ""
-echo " 🔑 DIRECT LOCAL SSH PORT FORWARDING (Fastest & 100% Secure):"
-echo "    Run this command on your local PC / laptop terminal:"
+echo " 💻 2. CONNECT FROM YOUR PC USING SSH (Zero Signup, No ngrok):"
+echo "    Run this command in terminal / PowerShell on your PC:"
 echo "    --------------------------------------------------------------"
-echo "    ssh -N -L $PORT:127.0.0.1:$PORT -p 22 root@$(curl -s ifconfig.me 2>/dev/null || echo '<server-ip>')"
-echo "    Password: $SSH_PASSWORD (saved in .ssh_auth)"
+if [ -n "$SSH_TUNNEL_HOST" ]; then
+echo "    ssh -N -L $PORT:127.0.0.1:$PORT -p 2222 root@$SSH_TUNNEL_HOST"
+else
+echo "    ssh -N -L $PORT:127.0.0.1:$PORT nokey@localhost.run"
+fi
+echo "    Password : $SSH_PASSWORD (saved in .ssh_auth)"
 echo "    --------------------------------------------------------------"
-echo "    Then open in your browser: http://localhost:$PORT"
+echo "    👉 Once running, open on your PC: http://localhost:$PORT"
+echo "       (Ultra-low latency, unlimited bandwidth, streams directly)"
 echo "=================================================================="
 
 # Step 6: Interactive Terminal Chatbox on the last part
