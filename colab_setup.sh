@@ -227,39 +227,50 @@ sudo sed -i 's/#Port 22/Port '"$SSHD_PORT"'/' /etc/ssh/sshd_config 2>/dev/null |
 sudo sed -i 's/^Port .*/Port '"$SSHD_PORT"'/' /etc/ssh/sshd_config 2>/dev/null || true
 sudo service ssh restart >/dev/null 2>&1 || sudo /usr/sbin/sshd -p "$SSHD_PORT" 2>/dev/null || true
 
-# Instant zero-signup reverse SSH tunnel via localhost.run (no accounts, no tokens, no limits)
+# ------------------------------------------------------------------------------
+# Feature 1: MoEBoost SSH Secure Connect (Strictly Private - Password Protected)
+# ------------------------------------------------------------------------------
+# We ONLY expose the SSH port over the reverse tunnel. No public HTTP port is opened!
+# Anyone wishing to connect MUST authenticate with the SSH password.
+# ------------------------------------------------------------------------------
 SSH_TUNNEL_LOG="$ROOT_DIR/.ssh_tunnel.log"
 pkill -f "localhost.run" 2>/dev/null || true
 
-# Forward both HTTP (GUI) and SSH (Dedicated Port $SSHD_PORT) through reverse tunnel
-ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:127.0.0.1:$PORT -R 2222:127.0.0.1:$SSHD_PORT nokey@localhost.run > "$SSH_TUNNEL_LOG" 2>&1 &
+# Forward ONLY the SSH daemon port ($SSHD_PORT). HTTP port $PORT remains completely private!
+ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 2222:127.0.0.1:$SSHD_PORT nokey@localhost.run > "$SSH_TUNNEL_LOG" 2>&1 &
 TUNNEL_PID=$!
 
 sleep 4
-PUBLIC_TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.lhr\.life' "$SSH_TUNNEL_LOG" | head -n 1 || true)
 SSH_TUNNEL_HOST=$(grep -oE '[a-zA-Z0-9.-]+\.lhr\.life' "$SSH_TUNNEL_LOG" | head -n 1 || true)
 
 echo ""
-echo " 🌐 1. INSTANT WEB GUI & API URL (Open in browser anywhere):"
-if [ -n "$PUBLIC_TUNNEL_URL" ]; then
-    echo "    $PUBLIC_TUNNEL_URL"
-else
-    echo "    http://127.0.0.1:$PORT (generating tunnel...)"
-fi
+echo "=================================================================="
+echo " 🔒 FEATURE 1: MoEBoost SSH Secure Connect (Private & Encrypted)"
+echo "=================================================================="
+echo " * Status: Purely Private. Public HTTP is DISABLED for security."
+echo " * All access requires SSH password authentication."
 echo ""
-echo " 💻 2. CONNECT FROM YOUR PC USING SSH (Zero Signup, No ngrok):"
-echo "    If you run MoEBoost on your PC too, map to a non-conflicting port (e.g. 5133):"
-echo "    --------------------------------------------------------------"
+echo " Run this command in terminal / PowerShell on your PC:"
+echo " -----------------------------------------------------------------"
 if [ -n "$SSH_TUNNEL_HOST" ]; then
-echo "    ssh -N -L 5133:127.0.0.1:$PORT -p 2222 root@$SSH_TUNNEL_HOST"
+echo " ssh -N -L 5133:127.0.0.1:$PORT -p 2222 root@$SSH_TUNNEL_HOST"
 else
-echo "    ssh -N -L 5133:127.0.0.1:$PORT nokey@localhost.run"
+echo " ssh -N -L 5133:127.0.0.1:$PORT -p 2222 root@<colab-tunnel-host>"
 fi
-echo "    Password : $SSH_PASSWORD (saved in .ssh_auth)"
-echo "    --------------------------------------------------------------"
-echo "    👉 Local MoEBoost : http://localhost:4133"
-echo "    👉 Colab MoEBoost : http://localhost:5133"
-echo "       (Both can run simultaneously without any port conflict!)"
+echo " SSH Password : $SSH_PASSWORD (saved in .ssh_auth)"
+echo " -----------------------------------------------------------------"
+echo " 👉 Once connected, open on your PC: http://localhost:5133"
+echo "=================================================================="
+echo ""
+echo "=================================================================="
+echo " 🌐 FEATURE 2: Local MoEBoost Custom API Provider (Separate Feature)"
+echo "=================================================================="
+echo " To use this Colab model inside your local MoEBoost (http://localhost:4133):"
+echo " 1. Connect via MoEBoost SSH Secure Connect above."
+echo " 2. In your local MoEBoost UI -> About -> Custom API Provider:"
+echo "    - Base URL : http://localhost:5133/v1"
+echo "    - API Key  : (not needed, secure SSH tunnel protects it)"
+echo " 3. Click 'Connect & Fetch Models' -> Select model -> Switch!"
 echo "=================================================================="
 
 # Step 6: Interactive Terminal Chatbox on the last part
