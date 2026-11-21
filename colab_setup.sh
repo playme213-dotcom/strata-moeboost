@@ -210,19 +210,22 @@ if [ -z "$SSH_PASSWORD" ]; then
     chmod 600 "$SSH_AUTH_FILE"
 fi
 
-# Configure sshd
+# Configure sshd on a dedicated custom port (default 22222, avoid standard port 22 collision)
+SSHD_PORT="${SSHD_PORT:-22222}"
 sudo mkdir -p /var/run/sshd 2>/dev/null || true
 echo "root:$SSH_PASSWORD" | sudo chpasswd 2>/dev/null || true
 sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config 2>/dev/null || true
 sudo sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config 2>/dev/null || true
-sudo service ssh restart >/dev/null 2>&1 || sudo /usr/sbin/sshd 2>/dev/null || true
+sudo sed -i 's/#Port 22/Port '"$SSHD_PORT"'/' /etc/ssh/sshd_config 2>/dev/null || true
+sudo sed -i 's/^Port .*/Port '"$SSHD_PORT"'/' /etc/ssh/sshd_config 2>/dev/null || true
+sudo service ssh restart >/dev/null 2>&1 || sudo /usr/sbin/sshd -p "$SSHD_PORT" 2>/dev/null || true
 
 # Instant zero-signup reverse SSH tunnel via localhost.run (no accounts, no tokens, no limits)
 SSH_TUNNEL_LOG="$ROOT_DIR/.ssh_tunnel.log"
 pkill -f "localhost.run" 2>/dev/null || true
 
-# Forward both HTTP (GUI) and SSH (Port 22) through reverse tunnel
-ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:127.0.0.1:$PORT -R 2222:127.0.0.1:22 nokey@localhost.run > "$SSH_TUNNEL_LOG" 2>&1 &
+# Forward both HTTP (GUI) and SSH (Dedicated Port $SSHD_PORT) through reverse tunnel
+ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:127.0.0.1:$PORT -R 2222:127.0.0.1:$SSHD_PORT nokey@localhost.run > "$SSH_TUNNEL_LOG" 2>&1 &
 TUNNEL_PID=$!
 
 sleep 4
