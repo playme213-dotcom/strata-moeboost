@@ -210,6 +210,13 @@ if [ -z "$SSH_PASSWORD" ]; then
     chmod 600 "$SSH_AUTH_FILE"
 fi
 
+# Optional: Accept local PC public SSH key for passwordless authentication
+mkdir -p /root/.ssh && chmod 700 /root/.ssh
+if [ -n "$SSH_PUBLIC_KEY" ]; then
+    echo "$SSH_PUBLIC_KEY" >> /root/.ssh/authorized_keys
+    chmod 600 /root/.ssh/authorized_keys
+fi
+
 # Configure sshd on a dedicated custom port (default 22222, avoid standard port 22 collision)
 SSHD_PORT="${SSHD_PORT:-22222}"
 sudo mkdir -p /var/run/sshd 2>/dev/null || true
